@@ -250,8 +250,8 @@ async function saveTransactionToFirebase(transaction, firebaseUserId) {
     const newTransaction = {
       ...transaction,
       id: `telegram_${Date.now()}`, // ID único para la transacción
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      createdAt: new Date().toISOString(), // Usar fecha de JavaScript en lugar de serverTimestamp
+      updatedAt: new Date().toISOString()  // Usar fecha de JavaScript en lugar de serverTimestamp
     }
     
     console.log(`📝 Nueva transacción:`, JSON.stringify(newTransaction, null, 2))
