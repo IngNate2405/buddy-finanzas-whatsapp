@@ -234,12 +234,16 @@ async function saveTransactionToFirebase(transaction, firebaseUserId) {
     
     // Obtener el documento del usuario
     const userRef = db.collection('users').doc(firebaseUserId)
+    console.log(`🔍 Obteniendo documento del usuario: ${firebaseUserId}`)
     const userDoc = await userRef.get()
     
     let transactions = []
     if (userDoc.exists) {
       const userData = userDoc.data()
       transactions = userData.transactions || []
+      console.log(`📊 Transacciones existentes: ${transactions.length}`)
+    } else {
+      console.log(`📝 Usuario no existe, creando nuevo documento`)
     }
     
     // Agregar nueva transacción al array
@@ -250,13 +254,17 @@ async function saveTransactionToFirebase(transaction, firebaseUserId) {
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     }
     
+    console.log(`📝 Nueva transacción:`, JSON.stringify(newTransaction, null, 2))
     transactions.push(newTransaction)
+    console.log(`📊 Total de transacciones después de agregar: ${transactions.length}`)
     
     // Guardar el array actualizado en el documento del usuario
+    console.log(`💾 Guardando en Firestore...`)
     await userRef.set({
       transactions: transactions,
       lastUpdated: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true })
+    console.log(`✅ Guardado exitoso en Firestore`)
     
     console.log(`✅ Transacción guardada exitosamente`)
     return true
