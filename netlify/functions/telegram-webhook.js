@@ -117,16 +117,28 @@ async function checkUserLink(telegramChatId) {
     const db = admin.firestore()
     
     // Buscar usuario vinculado
+    console.log(`🔍 Buscando en colección telegram_users con chatId: ${telegramChatId.toString()}`)
     const telegramUsers = await db.collection('telegram_users')
       .where('telegramChatId', '==', telegramChatId.toString())
       .get()
     
+    console.log(`📊 Resultados de la consulta: ${telegramUsers.size} documentos encontrados`)
+    
     if (!telegramUsers.empty) {
       const userData = telegramUsers.docs[0].data()
       console.log(`✅ Usuario vinculado encontrado: ${userData.firebaseUserId}`)
+      console.log(`📋 Datos del usuario:`, JSON.stringify(userData, null, 2))
       return userData
     } else {
       console.log(`❌ Usuario no vinculado para chatId: ${telegramChatId}`)
+      
+      // Buscar todos los documentos para debugging
+      const allUsers = await db.collection('telegram_users').get()
+      console.log(`🔍 Total de usuarios vinculados: ${allUsers.size}`)
+      allUsers.forEach(doc => {
+        console.log(`📋 Usuario: ${doc.id} - Datos:`, JSON.stringify(doc.data(), null, 2))
+      })
+      
       return null
     }
   } catch (error) {
