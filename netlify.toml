@@ -1,0 +1,23 @@
+[build]
+  command = "echo No build needed for serverless functions"
+  publish = "."
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/telegram"
+  to = "/.netlify/functions/telegram"
+  status = 200
+
+[[redirects]]
+  from = "/health"
+  to = "/.netlify/functions/health"
+  status = 200
+
+[[redirects]]
+  from = "/process-telegram"
+  to = "/.netlify/functions/process-telegram"
+  status = 200
+
+# Configuración para Python en Netlify
+[build.environment]
+  PYTHON_VERSION = "3.9"
