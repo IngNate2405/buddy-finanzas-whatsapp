@@ -15,3 +15,8 @@
   from = "/process-telegram"
   to = "/.netlify/functions/process-telegram"
   status = 200
+
+[[redirects]]
+  from = "/telegram-webhook"
+  to = "/.netlify/functions/telegram-webhook"
+  status = 200
