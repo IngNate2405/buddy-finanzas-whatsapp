@@ -4,16 +4,16 @@ Servidor para procesar mensajes de Telegram y guardar transacciones en Firebase.
 
 ## 🚀 Características
 
-- ✅ **Lectura automática** de mensajes de Telegram
 - ✅ **Procesamiento inteligente** de transacciones
 - ✅ **Integración con Firebase** por usuario
 - ✅ **Despliegue en Netlify** como funciones serverless
 - ✅ **Configuración segura** con variables de entorno
+- ✅ **Sin dependencias de Python** (solo JavaScript)
 
 ## 📱 Cómo funciona
 
 1. **Envías mensajes** a "Mensajes guardados" en Telegram
-2. **El servidor lee** los mensajes usando la API de Telegram
+2. **El servidor procesa** los mensajes (simulado por ahora)
 3. **Procesa transacciones** automáticamente
 4. **Guarda en Firebase** por usuario
 5. **Aparece en tu app** web
