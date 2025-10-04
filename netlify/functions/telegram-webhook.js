@@ -20,6 +20,61 @@ exports.handler = async (event, context) => {
     
     console.log(`📱 Mensaje de ${fromUser.first_name} (${chatId}): ${text}`)
     
+    // Manejar comando /link
+    if (text.startsWith('/link ')) {
+      const firebaseUserId = text.split(' ')[1]
+      if (firebaseUserId) {
+        // Guardar vinculación en Firebase
+        const admin = require('firebase-admin')
+        
+        // Inicializar Firebase Admin si no está inicializado
+        if (!admin.apps.length) {
+          const serviceAccount = {
+            type: "service_account",
+            project_id: process.env.FIREBASE_PROJECT_ID,
+            private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
+            private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+            client_email: process.env.FIREBASE_CLIENT_EMAIL,
+            client_id: process.env.FIREBASE_CLIENT_ID,
+            auth_uri: "https://accounts.google.com/o/oauth2/auth",
+            token_uri: "https://oauth2.googleapis.com/token",
+            auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+            client_x509_cert_url: `https://www.googleapis.com/robot/v1/metadata/x509/${process.env.FIREBASE_CLIENT_EMAIL}`
+          }
+          
+          admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+          })
+        }
+        
+        const db = admin.firestore()
+        
+        // Guardar vinculación
+        await db.collection('telegram_users').add({
+          firebaseUserId: firebaseUserId,
+          telegramChatId: chatId.toString(), // Solo el chatId, sin el comando
+          linkedAt: admin.firestore.FieldValue.serverTimestamp(),
+          userEmail: fromUser.first_name || 'Usuario'
+        })
+        
+        await sendTelegramMessage(chatId, 
+          `✅ **¡Cuenta vinculada exitosamente!**\n\n` +
+          `Ahora puedes enviar transacciones como:\n\n` +
+          `• "Gasté Q50 en comida"\n` +
+          `• "Recibí Q1000 de salario"\n` +
+          `• "Pagué Q200 de renta"\n\n` +
+          `¡Las transacciones se guardarán automáticamente en tu app!`
+        )
+      } else {
+        await sendTelegramMessage(chatId, 
+          `❌ **Formato incorrecto**\n\n` +
+          `Usa: \`/link TU_ID_DE_FIREBASE\`\n\n` +
+          `Para obtener tu ID, ve a tu app web de Buddy Finanzas.`
+        )
+      }
+      return { statusCode: 200, body: 'OK' }
+    }
+    
     // Verificar si el usuario está vinculado
     const userLink = await checkUserLink(chatId)
     
