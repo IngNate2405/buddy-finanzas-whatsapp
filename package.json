@@ -1,0 +1,20 @@
+{
+  "name": "buddy-finanzas-telegram",
+  "version": "1.0.0",
+  "description": "Telegram API server for Buddy Finanzas",
+  "main": "index.js",
+  "scripts": {
+    "build": "echo No build needed for serverless functions"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  },
+  "keywords": [
+    "telegram",
+    "firebase",
+    "serverless",
+    "netlify"
+  ],
+  "author": "IngNate2405",
+  "license": "MIT"
+}
