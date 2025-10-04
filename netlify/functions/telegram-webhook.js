@@ -232,12 +232,31 @@ async function saveTransactionToFirebase(transaction, firebaseUserId) {
     
     const db = admin.firestore()
     
-    // Guardar transacción en Firestore
-    await db.collection('users').doc(firebaseUserId).collection('transactions').add({
+    // Obtener el documento del usuario
+    const userRef = db.collection('users').doc(firebaseUserId)
+    const userDoc = await userRef.get()
+    
+    let transactions = []
+    if (userDoc.exists) {
+      const userData = userDoc.data()
+      transactions = userData.transactions || []
+    }
+    
+    // Agregar nueva transacción al array
+    const newTransaction = {
       ...transaction,
+      id: `telegram_${Date.now()}`, // ID único para la transacción
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    })
+    }
+    
+    transactions.push(newTransaction)
+    
+    // Guardar el array actualizado en el documento del usuario
+    await userRef.set({
+      transactions: transactions,
+      lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true })
     
     console.log(`✅ Transacción guardada exitosamente`)
     return true
