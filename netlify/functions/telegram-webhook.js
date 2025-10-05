@@ -370,25 +370,25 @@ function classifyTransaction(text, transactionType) {
 
   if (transactionType === 'expense') {
     if (textLower.includes('comida') || textLower.includes('restaurante') || textLower.includes('supermercado') || textLower.includes('café') || textLower.includes('comer')) {
-      return 'Food & drinks'
+      return 'Food' // Subcategoría específica, no sección
     } else if (textLower.includes('gasolina') || textLower.includes('gas') || textLower.includes('transporte') || textLower.includes('taxi') || textLower.includes('uber') || textLower.includes('carro')) {
-      return 'Transportation'
+      return 'Gas' // Subcategoría específica, no sección
     } else if (textLower.includes('cine') || textLower.includes('entretenimiento') || textLower.includes('gym') || textLower.includes('deporte') || textLower.includes('fiesta')) {
-      return 'Entertainment'
+      return 'Cinema' // Subcategoría específica, no sección
     } else if (textLower.includes('renta') || textLower.includes('servicio') || textLower.includes('internet') || textLower.includes('teléfono') || textLower.includes('luz') || textLower.includes('agua')) {
-      return 'Housing'
+      return 'Rent' // Subcategoría específica, no sección
     } else if (textLower.includes('ropa') || textLower.includes('farmacia') || textLower.includes('corte') || textLower.includes('cuidado')) {
-      return 'Lifestyle'
+      return 'Clothing' // Subcategoría específica, no sección
     } else {
-      return 'Miscellaneous'
+      return 'Other' // Subcategoría específica, no sección
     }
   } else { // income
     if (textLower.includes('salario') || textLower.includes('trabajo') || textLower.includes('sueldo') || textLower.includes('pago')) {
-      return 'Income'
+      return 'Salary' // Subcategoría específica, no sección
     } else if (textLower.includes('inversión') || textLower.includes('interés') || textLower.includes('dividendo')) {
-      return 'Investments'
+      return 'Investment' // Subcategoría específica, no sección
     } else {
-      return 'Other'
+      return 'Other' // Subcategoría específica, no sección
     }
   }
 }
