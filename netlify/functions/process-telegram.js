@@ -35,16 +35,16 @@ exports.handler = async (event, context) => {
         // Compatible con formato tipo Telegram simulado
         messages = [{
           id: body.message.message_id || Date.now(),
-          text: body.message.text || '',
+          text: body.message.text || body.mensaje || '',
           date: new Date().toISOString(),
           sender: (body.message.from && body.message.from.id) || body.sender || 'unknown',
           userId: body.userId || body.firebaseUserId || null
         }]
-      } else if (body && body.text) {
-        // Formato simple: { text, firebaseUserId }
+      } else if (body && (body.text || body.mensaje)) {
+        // Formato simple: { mensaje|text, userId|firebaseUserId }
         messages = [{
           id: Date.now(),
-          text: body.text || '',
+          text: body.mensaje || body.text || '',
           date: new Date().toISOString(),
           sender: 'shortcut',
           userId: body.userId || body.firebaseUserId || null
