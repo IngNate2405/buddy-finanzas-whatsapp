@@ -391,6 +391,27 @@ function parseBAMTransaction(text) {
   const amount = parseFloat(amountMatch[1])
   console.log('💰 Monto extraído:', amount)
   
+  // Extraer la fecha del mensaje
+  let transactionDate = new Date().toISOString() // Por defecto fecha actual
+  
+  // Buscar fecha en formato DD/MM/YYYY o DD/MM/YY
+  const dateMatch = text.match(/(\d{2})\/(\d{2})\/(\d{2,4})/)
+  if (dateMatch) {
+    const day = parseInt(dateMatch[1])
+    const month = parseInt(dateMatch[2]) - 1 // JavaScript months are 0-indexed
+    let year = parseInt(dateMatch[3])
+    
+    // Si el año es de 2 dígitos, asumir 20XX
+    if (year < 100) {
+      year += 2000
+    }
+    
+    transactionDate = new Date(year, month, day).toISOString()
+    console.log('📅 Fecha extraída del mensaje:', transactionDate)
+  } else {
+    console.log('⚠️ No se encontró fecha en el mensaje, usando fecha actual')
+  }
+  
   // Determinar tipo de transacción
   let transactionType = 'expense' // Por defecto
   let description = ''
@@ -437,7 +458,7 @@ function parseBAMTransaction(text) {
     type: transactionType,
     category: category,
     description: description,
-    date: new Date().toISOString(),
+    date: transactionDate, // Usar la fecha extraída del mensaje
     source: 'telegram_bam'
   }
 }
