@@ -38,7 +38,7 @@ exports.handler = async (event, context) => {
           text: body.message.text || '',
           date: new Date().toISOString(),
           sender: (body.message.from && body.message.from.id) || body.sender || 'unknown',
-          firebaseUserId: body.firebaseUserId || null
+          userId: body.userId || body.firebaseUserId || null
         }]
       } else if (body && body.text) {
         // Formato simple: { text, firebaseUserId }
@@ -47,7 +47,7 @@ exports.handler = async (event, context) => {
           text: body.text || '',
           date: new Date().toISOString(),
           sender: 'shortcut',
-          firebaseUserId: body.firebaseUserId || null
+          userId: body.userId || body.firebaseUserId || null
         }]
       }
     } catch (e) {
@@ -81,7 +81,7 @@ exports.handler = async (event, context) => {
         console.log(`✅ Transacción reconocida: ${JSON.stringify(transaction)}`)
         
         // Determinar usuario destino
-        let firebaseUserId = message.firebaseUserId || null
+        let firebaseUserId = message.userId || null
         if (!firebaseUserId) {
           const userQuery = await db.collection('telegram_users')
             .where('telegramUserId', '==', message.sender)
