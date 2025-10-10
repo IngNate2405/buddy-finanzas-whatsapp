@@ -118,6 +118,24 @@ exports.handler = async (event, context) => {
         
         // Determinar usuario destino
         let firebaseUserId = message.userId || null
+        // Si viene chatId (numérico) en lugar de Firebase UID, mapear desde telegram_users
+        if (firebaseUserId && /^\d+$/.test(String(firebaseUserId))) {
+          try {
+            console.log('🔗 userId parece chatId, intentando mapear en telegram_users…')
+            const byChat = await db.collection('telegram_users')
+              .where('telegramChatId', '==', String(firebaseUserId))
+              .get()
+            if (!byChat.empty) {
+              const data = byChat.docs[0].data()
+              firebaseUserId = data.firebaseUserId
+              console.log('✅ Mapeo chatId→firebaseUserId:', firebaseUserId)
+            } else {
+              console.log('⚠️ No se encontró mapeo para ese chatId en telegram_users')
+            }
+          } catch (e) {
+            console.log('⚠️ Error mapeando chatId:', e.message)
+          }
+        }
         if (!firebaseUserId) {
           const userQuery = await db.collection('telegram_users')
             .where('telegramUserId', '==', message.sender)
@@ -148,7 +166,7 @@ exports.handler = async (event, context) => {
           processedCount++
           console.log(`💾 Transacción guardada para usuario: ${firebaseUserId}`)
         } else {
-          console.log(`❌ Usuario no encontrado. Proporcione firebaseUserId en el cuerpo para pruebas.`)
+          console.log(`❌ Usuario no encontrado. Proporcione userId (Firebase UID) o un chatId que exista en telegram_users.`)
         }
       } else {
         console.log(`❌ Transacción no reconocida: ${message.text}`)
