@@ -448,11 +448,12 @@ function classifyTransaction(text, transactionType) {
   console.log('🔍 Clasificando transacción:', textLower, 'Tipo:', transactionType)
 
   if (transactionType === 'expense') {
-    // Categorías para gastos
-    if (textLower.includes('comida') || textLower.includes('restaurante') || textLower.includes('supermercado') || 
-        textLower.includes('café') || textLower.includes('comer') || textLower.includes('apple pay') ||
-        textLower.includes('jardines') || textLower.includes('est. de serv.')) {
-      return 'Food' // Subcategoría específica, no sección
+    // Categorías para gastos - Solo restaurantes específicos van a Food
+    if (textLower.includes('café') || textLower.includes('pollo') || textLower.includes('pizza') || 
+        textLower.includes('restaurante') || textLower.includes('comida') || textLower.includes('supermercado') || 
+        textLower.includes('comer') || textLower.includes('mcdonalds') || textLower.includes('burger king') ||
+        textLower.includes('kfc') || textLower.includes('subway') || textLower.includes('dominos')) {
+      return 'Food' // Solo restaurantes específicos
     } else if (textLower.includes('gasolina') || textLower.includes('gas') || textLower.includes('transporte') || 
                textLower.includes('taxi') || textLower.includes('uber') || textLower.includes('carro')) {
       return 'Gas' // Subcategoría específica, no sección
@@ -466,7 +467,7 @@ function classifyTransaction(text, transactionType) {
                textLower.includes('cuidado')) {
       return 'Clothing' // Subcategoría específica, no sección
     } else {
-      return 'Other' // Subcategoría específica, no sección
+      return 'Miscellaneous' // Por defecto para transacciones BAM variadas
     }
   } else { // income
     // Categorías para ingresos
