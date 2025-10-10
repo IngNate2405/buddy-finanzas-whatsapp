@@ -60,9 +60,13 @@ exports.handler = async (event, context) => {
         await sendTelegramMessage(chatId, 
           `✅ **¡Cuenta vinculada exitosamente!**\n\n` +
           `Ahora puedes enviar transacciones como:\n\n` +
+          `💰 **Mensajes manuales:**\n` +
           `• "Gasté Q50 en comida"\n` +
           `• "Recibí Q1000 de salario"\n` +
           `• "Pagué Q200 de renta"\n\n` +
+          `🏦 **Mensajes del banco BAM:**\n` +
+          `• Copia y pega los mensajes de BAM Avisa\n` +
+          `• Se procesarán automáticamente\n\n` +
           `¡Las transacciones se guardarán automáticamente en tu app!`
         )
       } else {
@@ -119,13 +123,13 @@ exports.handler = async (event, context) => {
       await sendTelegramMessage(chatId, 
         `📱 **Buddy Finanzas Bot**\n\n` +
         `Para registrar una transacción, envía un mensaje como:\n\n` +
-        `💰 **Gastos:**\n` +
+        `💰 **Mensajes manuales:**\n` +
         `• "Gasté Q50 en comida"\n` +
         `• "Pagué Q200 de renta"\n` +
-        `• "Compré Q30 en supermercado"\n\n` +
-        `💵 **Ingresos:**\n` +
-        `• "Recibí Q3000 de salario"\n` +
-        `• "Gané Q500 de venta"\n\n` +
+        `• "Recibí Q3000 de salario"\n\n` +
+        `🏦 **Mensajes del banco BAM:**\n` +
+        `• Copia y pega los mensajes de BAM Avisa\n` +
+        `• Ejemplo: "BAM Avisa: TD 1924 APPLE PAY COMPRA EST. DE SERV. JARDINES del 07/10/2025 por Q100.00..."\n\n` +
         `¡Las transacciones se guardarán automáticamente en tu app!`
       )
     }
@@ -310,6 +314,15 @@ async function sendTelegramMessage(chatId, text) {
 
 // Función para parsear transacciones
 function parseTransaction(text) {
+  console.log('🔍 Analizando mensaje:', text)
+  
+  // Primero verificar si es un mensaje del banco BAM
+  if (text.includes('BAM Avisa:')) {
+    console.log('🏦 Mensaje del banco BAM detectado')
+    return parseBAMTransaction(text)
+  }
+  
+  // Patrones para mensajes manuales
   const patterns = {
     expense_patterns: [
       /gast[éa]?\s*Q?\s*(\d+(?:\.\d{2})?)/i,
@@ -364,26 +377,101 @@ function parseTransaction(text) {
   return null
 }
 
+// Función específica para parsear mensajes del banco BAM
+function parseBAMTransaction(text) {
+  console.log('🏦 Procesando mensaje BAM:', text)
+  
+  // Extraer el monto (Q seguido de números)
+  const amountMatch = text.match(/Q\s*(\d+(?:\.\d{2})?)/)
+  if (!amountMatch) {
+    console.log('❌ No se encontró monto en mensaje BAM')
+    return null
+  }
+  
+  const amount = parseFloat(amountMatch[1])
+  console.log('💰 Monto extraído:', amount)
+  
+  // Determinar tipo de transacción
+  let transactionType = 'expense' // Por defecto
+  let description = ''
+  
+  if (text.includes('COMPRA')) {
+    transactionType = 'expense'
+    console.log('💸 Tipo: Gasto (COMPRA)')
+    
+    // Extraer descripción: desde COMPRA hasta el monto
+    const compraMatch = text.match(/COMPRA\s+([^Q]+?)\s+del\s+\d{2}\/\d{2}\/\d{4}\s+por\s+Q\d+(?:\.\d{2})?/)
+    if (compraMatch) {
+      description = `COMPRA ${compraMatch[1].trim()}`
+    } else {
+      // Fallback: extraer todo después de COMPRA hasta el monto
+      const fallbackMatch = text.match(/COMPRA\s+([^Q]+?)\s+Q\d+(?:\.\d{2})?/)
+      if (fallbackMatch) {
+        description = `COMPRA ${fallbackMatch[1].trim()}`
+      } else {
+        description = 'COMPRA'
+      }
+    }
+    
+  } else if (text.includes('CREDITO')) {
+    transactionType = 'income'
+    console.log('💵 Tipo: Ingreso (CREDITO)')
+    
+    // Extraer descripción: desde CREDITO hasta el monto
+    const creditoMatch = text.match(/CREDITO\s+([^Q]+?)\s+Q\d+(?:\.\d{2})?/)
+    if (creditoMatch) {
+      description = `CREDITO ${creditoMatch[1].trim()}`
+    } else {
+      description = 'CREDITO'
+    }
+  }
+  
+  console.log('📝 Descripción extraída:', description)
+  
+  // Clasificar categoría
+  const category = classifyTransaction(description, transactionType)
+  console.log('📂 Categoría clasificada:', category)
+  
+  return {
+    amount: amount,
+    type: transactionType,
+    category: category,
+    description: description,
+    date: new Date().toISOString(),
+    source: 'telegram_bam'
+  }
+}
+
 // Función para clasificar transacciones
 function classifyTransaction(text, transactionType) {
   const textLower = text.toLowerCase()
+  console.log('🔍 Clasificando transacción:', textLower, 'Tipo:', transactionType)
 
   if (transactionType === 'expense') {
-    if (textLower.includes('comida') || textLower.includes('restaurante') || textLower.includes('supermercado') || textLower.includes('café') || textLower.includes('comer')) {
+    // Categorías para gastos
+    if (textLower.includes('comida') || textLower.includes('restaurante') || textLower.includes('supermercado') || 
+        textLower.includes('café') || textLower.includes('comer') || textLower.includes('apple pay') ||
+        textLower.includes('jardines') || textLower.includes('est. de serv.')) {
       return 'Food' // Subcategoría específica, no sección
-    } else if (textLower.includes('gasolina') || textLower.includes('gas') || textLower.includes('transporte') || textLower.includes('taxi') || textLower.includes('uber') || textLower.includes('carro')) {
+    } else if (textLower.includes('gasolina') || textLower.includes('gas') || textLower.includes('transporte') || 
+               textLower.includes('taxi') || textLower.includes('uber') || textLower.includes('carro')) {
       return 'Gas' // Subcategoría específica, no sección
-    } else if (textLower.includes('cine') || textLower.includes('entretenimiento') || textLower.includes('gym') || textLower.includes('deporte') || textLower.includes('fiesta')) {
+    } else if (textLower.includes('cine') || textLower.includes('entretenimiento') || textLower.includes('gym') || 
+               textLower.includes('deporte') || textLower.includes('fiesta')) {
       return 'Cinema' // Subcategoría específica, no sección
-    } else if (textLower.includes('renta') || textLower.includes('servicio') || textLower.includes('internet') || textLower.includes('teléfono') || textLower.includes('luz') || textLower.includes('agua')) {
+    } else if (textLower.includes('renta') || textLower.includes('servicio') || textLower.includes('internet') || 
+               textLower.includes('teléfono') || textLower.includes('luz') || textLower.includes('agua')) {
       return 'Rent' // Subcategoría específica, no sección
-    } else if (textLower.includes('ropa') || textLower.includes('farmacia') || textLower.includes('corte') || textLower.includes('cuidado')) {
+    } else if (textLower.includes('ropa') || textLower.includes('farmacia') || textLower.includes('corte') || 
+               textLower.includes('cuidado')) {
       return 'Clothing' // Subcategoría específica, no sección
     } else {
       return 'Other' // Subcategoría específica, no sección
     }
   } else { // income
-    if (textLower.includes('salario') || textLower.includes('trabajo') || textLower.includes('sueldo') || textLower.includes('pago')) {
+    // Categorías para ingresos
+    if (textLower.includes('salario') || textLower.includes('trabajo') || textLower.includes('sueldo') || 
+        textLower.includes('pago') || textLower.includes('credito') || textLower.includes('cuenta')) {
       return 'Salary' // Subcategoría específica, no sección
     } else if (textLower.includes('inversión') || textLower.includes('interés') || textLower.includes('dividendo')) {
       return 'Investment' // Subcategoría específica, no sección
