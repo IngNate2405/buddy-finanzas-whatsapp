@@ -20,8 +20,20 @@ exports.handler = async (event, context) => {
     
     console.log(`📱 Mensaje de ${fromUser.first_name} (${chatId}): ${text}`)
     
-    // Manejar comando /myid
-    if (text === '/myid') {
+    // Manejar pregunta sobre ID (flexible)
+    const textLower = text.toLowerCase()
+      .replace(/[áàäâ]/g, 'a')
+      .replace(/[éèëê]/g, 'e')
+      .replace(/[íìïî]/g, 'i')
+      .replace(/[óòöô]/g, 'o')
+      .replace(/[úùüû]/g, 'u')
+      .replace(/[ñ]/g, 'n')
+      .replace(/[¿?]/g, '')
+      .trim()
+    
+    if (textLower.includes('cual es mi id') || textLower.includes('cual es mi user id') || 
+        textLower.includes('mi id') || textLower.includes('mi user id') ||
+        text === '/myid') {
       await sendTelegramMessage(chatId, 
         `🆔 **Tu User ID de Firebase:**\n\n` +
         `\`${chatId}\`\n\n` +
@@ -82,7 +94,7 @@ exports.handler = async (event, context) => {
           `• Copia y pega los mensajes de BAM Avisa\n` +
           `• Se procesarán automáticamente\n\n` +
           `🔧 **Comandos útiles:**\n` +
-          `• \`/myid\` - Obtener tu User ID para shortcuts\n\n` +
+          `• "¿Cuál es mi ID?" - Obtener tu User ID para shortcuts\n\n` +
           `¡Las transacciones se guardarán automáticamente en tu app!`
         )
       } else {
@@ -148,7 +160,7 @@ exports.handler = async (event, context) => {
         `• Copia y pega los mensajes de BAM Avisa\n` +
         `• Ejemplo: "BAM Avisa: TD 1924 APPLE PAY COMPRA EST. DE SERV. JARDINES del 07/10/2025 por Q100.00..."\n\n` +
         `🔧 **Comandos útiles:**\n` +
-        `• \`/myid\` - Obtener tu User ID para shortcuts\n` +
+        `• "¿Cuál es mi ID?" - Obtener tu User ID para shortcuts\n` +
         `• \`/link [ID]\` - Vincular cuenta\n\n` +
         `¡Las transacciones se guardarán automáticamente en tu app!`
       )
