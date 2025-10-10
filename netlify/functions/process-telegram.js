@@ -43,25 +43,45 @@ exports.handler = async (event, context) => {
     // Leer el cuerpo enviado (permitir pruebas directas)
     let messages = []
     try {
-      const body = event && event.body ? JSON.parse(event.body) : null
+      let body = event && event.body ? JSON.parse(event.body) : null
       console.log('🧩 Body parsed keys:', body ? Object.keys(body) : [])
+
+      // Fallback: algunos Shortcuts envían el JSON como clave del objeto
+      // Ej: { "{\"mensaje\":{\"prueba\":\"\"},\"userId\":{\"830950655\":\"\"}}":{} }
+      if (body && Object.keys(body).length === 1 && typeof Object.keys(body)[0] === 'string') {
+        const onlyKey = Object.keys(body)[0]
+        try {
+          const reparsed = JSON.parse(onlyKey)
+          console.log('🔄 Reparse exitoso desde clave-string. Keys:', Object.keys(reparsed))
+          body = reparsed
+        } catch (e) {
+          console.log('⚠️ No se pudo reparsear la clave-string como JSON')
+        }
+      }
+
+      // Normalizar campos cuando vienen como objetos con clave vacía
+      const rawMensaje = body ? (body.mensaje ?? body.text) : undefined
+      const rawUserId = body ? (body.userId ?? body.firebaseUserId) : undefined
+      const mensajeStr = typeof rawMensaje === 'string' ? rawMensaje : (rawMensaje && typeof rawMensaje === 'object' ? Object.keys(rawMensaje)[0] || '' : '')
+      const userIdStr = typeof rawUserId === 'string' ? rawUserId : (rawUserId && typeof rawUserId === 'object' ? Object.keys(rawUserId)[0] || '' : '')
+
       if (body && body.message) {
         // Compatible con formato tipo Telegram simulado
         messages = [{
           id: body.message.message_id || Date.now(),
-          text: body.message.text || body.mensaje || '',
+          text: body.message.text || mensajeStr || '',
           date: new Date().toISOString(),
           sender: (body.message.from && body.message.from.id) || body.sender || 'unknown',
-          userId: body.userId || body.firebaseUserId || null
+          userId: userIdStr || null
         }]
-      } else if (body && (body.text || body.mensaje)) {
+      } else if (body && (mensajeStr)) {
         // Formato simple: { mensaje|text, userId|firebaseUserId }
         messages = [{
           id: Date.now(),
-          text: body.mensaje || body.text || '',
+          text: mensajeStr || '',
           date: new Date().toISOString(),
           sender: 'shortcut',
-          userId: body.userId || body.firebaseUserId || null
+          userId: userIdStr || null
         }]
       } else {
         console.log('ℹ️ Body sin campos esperados (message/text/mensaje).')
