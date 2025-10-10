@@ -27,53 +27,92 @@ exports.handler = async (event, context) => {
     
     const db = admin.firestore()
     
-    // Simular mensajes de Telegram (en producción esto vendría de la API)
-    const messages = [
-      {
-        id: 1,
-        text: "Gasté Q50 en comida",
-        date: new Date().toISOString(),
-        sender: "user123"
-      },
-      {
-        id: 2,
-        text: "Recibí Q3000 de salario",
-        date: new Date().toISOString(),
-        sender: "user123"
+    // Leer el cuerpo enviado (permitir pruebas directas)
+    let messages = []
+    try {
+      const body = event && event.body ? JSON.parse(event.body) : null
+      if (body && body.message) {
+        // Compatible con formato tipo Telegram simulado
+        messages = [{
+          id: body.message.message_id || Date.now(),
+          text: body.message.text || '',
+          date: new Date().toISOString(),
+          sender: (body.message.from && body.message.from.id) || body.sender || 'unknown',
+          firebaseUserId: body.firebaseUserId || null
+        }]
+      } else if (body && body.text) {
+        // Formato simple: { text, firebaseUserId }
+        messages = [{
+          id: Date.now(),
+          text: body.text || '',
+          date: new Date().toISOString(),
+          sender: 'shortcut',
+          firebaseUserId: body.firebaseUserId || null
+        }]
       }
-    ]
+    } catch (e) {
+      console.log('⚠️ Cuerpo no JSON o inválido, se usará arreglo vacío')
+    }
+    
+    // Si no hay cuerpo, no procesar mensajes por defecto
+    if (!messages.length) {
+      console.log('ℹ️ Sin mensajes de entrada. Retornando OK sin procesar.')
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'success', message: 'Sin mensajes para procesar', processed: 0, total: 0 })
+      }
+    }
     
     let processedCount = 0
     
     for (const message of messages) {
-      // Procesar transacción
-      const transaction = parseTransaction(message.text)
+      // Procesar transacción (o nota si no coincide)
+      const transaction = parseTransaction(message.text) || {
+        amount: 0,
+        type: 'note',
+        category: 'Miscellaneous',
+        description: message.text || 'nota',
+        date: new Date().toISOString(),
+        source: 'telegram-test'
+      }
       
       if (transaction) {
         console.log(`✅ Transacción reconocida: ${JSON.stringify(transaction)}`)
         
-        // Buscar usuario por sender ID (en producción esto sería más complejo)
-        const userQuery = await db.collection('telegram_users')
-          .where('telegramUserId', '==', message.sender)
-          .get()
+        // Determinar usuario destino
+        let firebaseUserId = message.firebaseUserId || null
+        if (!firebaseUserId) {
+          const userQuery = await db.collection('telegram_users')
+            .where('telegramUserId', '==', message.sender)
+            .get()
+          if (!userQuery.empty) {
+            const userData = userQuery.docs[0].data()
+            firebaseUserId = userData.firebaseUserId
+          }
+        }
         
-        if (!userQuery.empty) {
-          const userData = userQuery.docs[0].data()
-          const firebaseUserId = userData.firebaseUserId
+        if (firebaseUserId) {
           
           // Guardar transacción
-          await db.collection('users').doc(firebaseUserId).collection('transactions').add({
+          // Guardar en array principal `users/[uid].transactions` para compatibilidad con app
+          const userRef = db.collection('users').doc(firebaseUserId)
+          const doc = await userRef.get()
+          const existing = doc.exists ? (doc.data().transactions || []) : []
+          const toSave = {
             ...transaction,
-            source: 'telegram',
-            telegramMessageId: message.id,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-          })
+            id: `process_${Date.now()}`,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            telegramMessageId: message.id
+          }
+          existing.push(toSave)
+          await userRef.set({ transactions: existing, lastUpdated: admin.firestore.FieldValue.serverTimestamp() }, { merge: true })
           
           processedCount++
           console.log(`💾 Transacción guardada para usuario: ${firebaseUserId}`)
         } else {
-          console.log(`❌ Usuario no encontrado para sender: ${message.sender}`)
+          console.log(`❌ Usuario no encontrado. Proporcione firebaseUserId en el cuerpo para pruebas.`)
         }
       } else {
         console.log(`❌ Transacción no reconocida: ${message.text}`)
