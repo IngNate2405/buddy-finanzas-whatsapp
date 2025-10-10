@@ -1,5 +1,18 @@
 exports.handler = async (event, context) => {
   console.log('📱 Procesando mensajes de Telegram...')
+  try {
+    console.log('➡️  HTTP Method:', event && event.httpMethod)
+    console.log('🧾 Headers (parciales):', event && event.headers ? JSON.stringify({
+      'content-type': event.headers['content-type'] || event.headers['Content-Type'],
+      'user-agent': event.headers['user-agent'] || event.headers['User-Agent'],
+      'content-length': event.headers['content-length'] || event.headers['Content-Length']
+    }) : 'sin headers')
+    // Log seguro del body (primeros 1000 chars máximo)
+    const rawBody = event && event.body ? (typeof event.body === 'string' ? event.body : JSON.stringify(event.body)) : ''
+    console.log('📦 Body (raw, truncado):', rawBody ? rawBody.substring(0, 1000) : 'sin body')
+  } catch (e) {
+    console.log('⚠️ Error logueando request:', e.message)
+  }
   
   try {
     // Importar Firebase Admin SDK
@@ -31,6 +44,7 @@ exports.handler = async (event, context) => {
     let messages = []
     try {
       const body = event && event.body ? JSON.parse(event.body) : null
+      console.log('🧩 Body parsed keys:', body ? Object.keys(body) : [])
       if (body && body.message) {
         // Compatible con formato tipo Telegram simulado
         messages = [{
@@ -49,6 +63,8 @@ exports.handler = async (event, context) => {
           sender: 'shortcut',
           userId: body.userId || body.firebaseUserId || null
         }]
+      } else {
+        console.log('ℹ️ Body sin campos esperados (message/text/mensaje).')
       }
     } catch (e) {
       console.log('⚠️ Cuerpo no JSON o inválido, se usará arreglo vacío')
