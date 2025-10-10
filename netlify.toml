@@ -22,6 +22,11 @@ to = "/.netlify/functions/telegram-webhook"
 status = 200
 
 [[redirects]]
+from = "/public-config"
+to = "/.netlify/functions/public-config"
+status = 200
+
+[[redirects]]
 from = "/add-transaction"
 to = "/.netlify/functions/add-transaction"
 status = 200
