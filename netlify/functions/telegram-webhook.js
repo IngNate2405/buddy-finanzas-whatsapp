@@ -20,6 +20,19 @@ exports.handler = async (event, context) => {
     
     console.log(`📱 Mensaje de ${fromUser.first_name} (${chatId}): ${text}`)
     
+    // Manejar comando /myid
+    if (text === '/myid') {
+      await sendTelegramMessage(chatId, 
+        `🆔 **Tu User ID de Firebase:**\n\n` +
+        `\`${chatId}\`\n\n` +
+        `📋 **Para usar en shortcuts:**\n` +
+        `Copia este ID y úsalo en tu shortcut de iPhone.\n\n` +
+        `💡 **Ejemplo de uso:**\n` +
+        `\`{"text": "mensaje", "userId": "${chatId}"}\``
+      )
+      return { statusCode: 200, body: 'OK' }
+    }
+    
     // Manejar comando /link
     if (text.startsWith('/link ')) {
       const firebaseUserId = text.split(' ')[1]
@@ -68,6 +81,8 @@ exports.handler = async (event, context) => {
           `🏦 **Mensajes del banco BAM:**\n` +
           `• Copia y pega los mensajes de BAM Avisa\n` +
           `• Se procesarán automáticamente\n\n` +
+          `🔧 **Comandos útiles:**\n` +
+          `• \`/myid\` - Obtener tu User ID para shortcuts\n\n` +
           `¡Las transacciones se guardarán automáticamente en tu app!`
         )
       } else {
@@ -132,6 +147,9 @@ exports.handler = async (event, context) => {
         `🏦 **Mensajes del banco BAM:**\n` +
         `• Copia y pega los mensajes de BAM Avisa\n` +
         `• Ejemplo: "BAM Avisa: TD 1924 APPLE PAY COMPRA EST. DE SERV. JARDINES del 07/10/2025 por Q100.00..."\n\n` +
+        `🔧 **Comandos útiles:**\n` +
+        `• \`/myid\` - Obtener tu User ID para shortcuts\n` +
+        `• \`/link [ID]\` - Vincular cuenta\n\n` +
         `¡Las transacciones se guardarán automáticamente en tu app!`
       )
     }
