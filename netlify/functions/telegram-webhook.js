@@ -62,8 +62,9 @@ exports.handler = async (event, context) => {
           `Ahora puedes enviar transacciones como:\n\n` +
           `💰 **Mensajes manuales:**\n` +
           `• "Gasté Q50 en comida"\n` +
-          `• "Recibí Q1000 de salario"\n` +
-          `• "Pagué Q200 de renta"\n\n` +
+          `• "Compré pizza el lunes"\n` +
+          `• "Gasté 20 en parqueo el martes pasado"\n` +
+          `• "Me dieron 25 por trabajo ayer"\n\n` +
           `🏦 **Mensajes del banco BAM:**\n` +
           `• Copia y pega los mensajes de BAM Avisa\n` +
           `• Se procesarán automáticamente\n\n` +
@@ -125,8 +126,9 @@ exports.handler = async (event, context) => {
         `Para registrar una transacción, envía un mensaje como:\n\n` +
         `💰 **Mensajes manuales:**\n` +
         `• "Gasté Q50 en comida"\n` +
-        `• "Pagué Q200 de renta"\n` +
-        `• "Recibí Q3000 de salario"\n\n` +
+        `• "Compré pizza el lunes"\n` +
+        `• "Gasté 20 en parqueo el martes pasado"\n` +
+        `• "Me dieron 25 por trabajo ayer"\n\n` +
         `🏦 **Mensajes del banco BAM:**\n` +
         `• Copia y pega los mensajes de BAM Avisa\n` +
         `• Ejemplo: "BAM Avisa: TD 1924 APPLE PAY COMPRA EST. DE SERV. JARDINES del 07/10/2025 por Q100.00..."\n\n` +
@@ -322,9 +324,20 @@ function parseTransaction(text) {
     return parseBAMTransaction(text)
   }
   
-  // Patrones para mensajes manuales
+  // Patrones mejorados para mensajes manuales con fechas relativas
   const patterns = {
     expense_patterns: [
+      // Patrones con fechas relativas
+      /compr[éa]?\s*Q?\s*(\d+(?:\.\d{2})?)\s*(?:en|de)?\s*([^,]+?)\s*(?:el|a)?\s*(lunes|martes|miércoles|jueves|viernes|sábado|domingo)(?:\s+pasado)?/i,
+      /gast[éa]?\s*Q?\s*(\d+(?:\.\d{2})?)\s*(?:en|de)?\s*([^,]+?)\s*(?:el|a)?\s*(lunes|martes|miércoles|jueves|viernes|sábado|domingo)(?:\s+pasado)?/i,
+      /pagu[éa]?\s*Q?\s*(\d+(?:\.\d{2})?)\s*(?:en|de)?\s*([^,]+?)\s*(?:el|a)?\s*(lunes|martes|miércoles|jueves|viernes|sábado|domingo)(?:\s+pasado)?/i,
+      
+      // Patrones con "ayer" y "hoy"
+      /compr[éa]?\s*Q?\s*(\d+(?:\.\d{2})?)\s*(?:en|de)?\s*([^,]+?)\s*(?:ayer|hoy)/i,
+      /gast[éa]?\s*Q?\s*(\d+(?:\.\d{2})?)\s*(?:en|de)?\s*([^,]+?)\s*(?:ayer|hoy)/i,
+      /pagu[éa]?\s*Q?\s*(\d+(?:\.\d{2})?)\s*(?:en|de)?\s*([^,]+?)\s*(?:ayer|hoy)/i,
+      
+      // Patrones simples (sin fecha específica)
       /gast[éa]?\s*Q?\s*(\d+(?:\.\d{2})?)/i,
       /pagu[éa]?\s*Q?\s*(\d+(?:\.\d{2})?)/i,
       /compr[éa]?\s*Q?\s*(\d+(?:\.\d{2})?)/i,
@@ -333,6 +346,17 @@ function parseTransaction(text) {
       /cobr[óo]?\s*Q?\s*(\d+(?:\.\d{2})?)/i
     ],
     income_patterns: [
+      // Patrones con fechas relativas
+      /(?:me\s+)?dieron\s*Q?\s*(\d+(?:\.\d{2})?)\s*(?:por|de)?\s*([^,]+?)\s*(?:el|a)?\s*(lunes|martes|miércoles|jueves|viernes|sábado|domingo)(?:\s+pasado)?/i,
+      /recib[íi]?\s*Q?\s*(\d+(?:\.\d{2})?)\s*(?:por|de)?\s*([^,]+?)\s*(?:el|a)?\s*(lunes|martes|miércoles|jueves|viernes|sábado|domingo)(?:\s+pasado)?/i,
+      /gan[éa]?\s*Q?\s*(\d+(?:\.\d{2})?)\s*(?:por|de)?\s*([^,]+?)\s*(?:el|a)?\s*(lunes|martes|miércoles|jueves|viernes|sábado|domingo)(?:\s+pasado)?/i,
+      
+      // Patrones con "ayer" y "hoy"
+      /(?:me\s+)?dieron\s*Q?\s*(\d+(?:\.\d{2})?)\s*(?:por|de)?\s*([^,]+?)\s*(?:ayer|hoy)/i,
+      /recib[íi]?\s*Q?\s*(\d+(?:\.\d{2})?)\s*(?:por|de)?\s*([^,]+?)\s*(?:ayer|hoy)/i,
+      /gan[éa]?\s*Q?\s*(\d+(?:\.\d{2})?)\s*(?:por|de)?\s*([^,]+?)\s*(?:ayer|hoy)/i,
+      
+      // Patrones simples (sin fecha específica)
       /recib[íi]?\s*Q?\s*(\d+(?:\.\d{2})?)/i,
       /gan[éa]?\s*Q?\s*(\d+(?:\.\d{2})?)/i,
       /ingres[óo]?\s*Q?\s*(\d+(?:\.\d{2})?)/i,
@@ -345,13 +369,16 @@ function parseTransaction(text) {
     const match = text.match(pattern)
     if (match) {
       const amount = parseFloat(match[1])
-      const category = classifyTransaction(text, 'expense')
+      const description = match[2] ? `${match[0].split(' ')[0]} ${match[2]}` : text
+      const category = classifyTransaction(description, 'expense')
+      const date = extractRelativeDate(text)
+      
       return {
         amount: amount,
         type: 'expense',
         category: category,
-        description: text,
-        date: new Date().toISOString(),
+        description: description,
+        date: date,
         source: 'telegram'
       }
     }
@@ -362,19 +389,76 @@ function parseTransaction(text) {
     const match = text.match(pattern)
     if (match) {
       const amount = parseFloat(match[1])
-      const category = classifyTransaction(text, 'income')
+      const description = match[2] ? `${match[0].split(' ')[0]} ${match[2]}` : text
+      const category = classifyTransaction(description, 'income')
+      const date = extractRelativeDate(text)
+      
       return {
         amount: amount,
         type: 'income',
         category: category,
-        description: text,
-        date: new Date().toISOString(),
+        description: description,
+        date: date,
         source: 'telegram'
       }
     }
   }
 
   return null
+}
+
+// Función para extraer fechas relativas
+function extractRelativeDate(text) {
+  const textLower = text.toLowerCase()
+  const today = new Date()
+  
+  // Días de la semana en español
+  const daysOfWeek = {
+    'lunes': 1, 'martes': 2, 'miércoles': 3, 'jueves': 4, 
+    'viernes': 5, 'sábado': 6, 'domingo': 0
+  }
+  
+  // Buscar "ayer"
+  if (textLower.includes('ayer')) {
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+    console.log('📅 Fecha detectada: ayer =', yesterday.toISOString())
+    return yesterday.toISOString()
+  }
+  
+  // Buscar "hoy"
+  if (textLower.includes('hoy')) {
+    console.log('📅 Fecha detectada: hoy =', today.toISOString())
+    return today.toISOString()
+  }
+  
+  // Buscar días de la semana
+  for (const [dayName, dayNumber] of Object.entries(daysOfWeek)) {
+    if (textLower.includes(dayName)) {
+      const isPastWeek = textLower.includes('pasado')
+      const targetDate = new Date(today)
+      
+      // Calcular el día de la semana objetivo
+      const currentDay = today.getDay()
+      let daysToSubtract = currentDay - dayNumber
+      
+      if (isPastWeek) {
+        // Si es "pasado", ir a la semana anterior
+        daysToSubtract += 7
+      } else if (daysToSubtract <= 0) {
+        // Si el día ya pasó esta semana, ir a la semana anterior
+        daysToSubtract += 7
+      }
+      
+      targetDate.setDate(targetDate.getDate() - daysToSubtract)
+      console.log(`📅 Fecha detectada: ${dayName}${isPastWeek ? ' pasado' : ''} =`, targetDate.toISOString())
+      return targetDate.toISOString()
+    }
+  }
+  
+  // Si no se encuentra fecha relativa, usar fecha actual
+  console.log('📅 No se detectó fecha relativa, usando fecha actual')
+  return today.toISOString()
 }
 
 // Función específica para parsear mensajes del banco BAM
