@@ -100,4 +100,4 @@ python netlify_telegram_reader.py
 
 Este repositorio está configurado para desplegarse automáticamente en Netlify cuando se hace push a la rama `main`.
 
-**¡Solo necesitas configurar las variables de entorno en Netlify!**
+**¡Solo necesitas configurar las variables de entorno en Netlify!**.
