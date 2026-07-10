@@ -1,0 +1,103 @@
+const admin = require('firebase-admin')
+
+// ── Firebase init ─────────────────────────────────────────────────────────────
+function initFirebase() {
+  if (admin.apps.length) return admin.firestore()
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      type: 'service_account',
+      project_id:                process.env.FIREBASE_PROJECT_ID,
+      private_key_id:            process.env.FIREBASE_PRIVATE_KEY_ID,
+      private_key:               process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      client_email:              process.env.FIREBASE_CLIENT_EMAIL,
+      client_id:                 process.env.FIREBASE_CLIENT_ID,
+      auth_uri:                  'https://accounts.google.com/o/oauth2/auth',
+      token_uri:                 'https://oauth2.googleapis.com/token',
+      auth_provider_x509_cert_url: 'https://www.googleapis.com/oauth2/v1/certs',
+      client_x509_cert_url:      `https://www.googleapis.com/robot/v1/metadata/x509/${process.env.FIREBASE_CLIENT_EMAIL}`,
+    }),
+  })
+  return admin.firestore()
+}
+
+// ── Category mapping → v2 categoryIds ────────────────────────────────────────
+const CATEGORY_MAP = {
+  // expense — food
+  'food':           'food',
+  'food & drinks':  'food',
+  // expense — transport
+  'gas':            'gas',
+  'transportation': 'car_costs',
+  // expense — entertainment
+  'cinema':         'cinema',
+  'entertainment':  'entertainment',
+  // expense — housing
+  'rent':           'rent',
+  'housing':        'housing',
+  // expense — lifestyle
+  'clothing':       'clothes',
+  'lifestyle':      'lifestyle',
+  // expense — misc
+  'miscellaneous':  'misc',
+  // income
+  'salary':         'salary',
+  'income':         'salary',
+  'investments':    'investments',
+  'investment':     'investments',
+  'other':          'income',
+}
+
+function toCategoryId(raw) {
+  return CATEGORY_MAP[(raw || '').toLowerCase()] || 'misc'
+}
+
+// ── Date helpers ──────────────────────────────────────────────────────────────
+function toDateString(value) {
+  const d = new Date(value)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+// ── Get default wallet for a user ─────────────────────────────────────────────
+async function getDefaultWalletId(db, uid) {
+  const settingsSnap = await db.doc(`users/${uid}/meta/settings`).get()
+  if (settingsSnap.exists) {
+    const { defaultWalletId } = settingsSnap.data()
+    if (defaultWalletId) return defaultWalletId
+  }
+  const wallets = await db.collection(`users/${uid}/wallets`).limit(1).get()
+  if (!wallets.empty) return wallets.docs[0].id
+  return null
+}
+
+// ── Save transaction to correct subcollection + adjust wallet balance ─────────
+async function saveTransaction(db, uid, { type, amount, categoryId, note, date }) {
+  const walletId = await getDefaultWalletId(db, uid)
+  if (!walletId) throw new Error(`No wallet found for user ${uid}`)
+
+  const txData = {
+    type,
+    amount,
+    categoryId,
+    walletId,
+    date,
+    createdAt: new Date().toISOString(),
+  }
+  if (note) txData.note = note
+
+  await db.collection(`users/${uid}/transactions`).add(txData)
+
+  // Adjust wallet balance (same logic as v2 frontend)
+  const walletRef = db.doc(`users/${uid}/wallets/${walletId}`)
+  const walletSnap = await walletRef.get()
+  if (walletSnap.exists) {
+    const current = walletSnap.data().balance || 0
+    await walletRef.update({ balance: type === 'income' ? current + amount : current - amount })
+  }
+
+  return walletId
+}
+
+module.exports = { initFirebase, toCategoryId, toDateString, saveTransaction }

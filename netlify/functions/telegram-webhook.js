@@ -1,3 +1,5 @@
+const { initFirebase, toCategoryId, toDateString, saveTransaction } = require('./utils/db')
+
 exports.handler = async (event, context) => {
   console.log('🤖 Telegram webhook recibido:', JSON.stringify(event, null, 2))
   
@@ -49,32 +51,7 @@ exports.handler = async (event, context) => {
     if (text.startsWith('/link ')) {
       const firebaseUserId = text.split(' ')[1]
       if (firebaseUserId) {
-        // Guardar vinculación en Firebase
-        const admin = require('firebase-admin')
-        
-        // Inicializar Firebase Admin si no está inicializado
-        if (!admin.apps.length) {
-          const serviceAccount = {
-            type: "service_account",
-            project_id: process.env.FIREBASE_PROJECT_ID,
-            private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-            private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-            client_email: process.env.FIREBASE_CLIENT_EMAIL,
-            client_id: process.env.FIREBASE_CLIENT_ID,
-            auth_uri: "https://accounts.google.com/o/oauth2/auth",
-            token_uri: "https://oauth2.googleapis.com/token",
-            auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-            client_x509_cert_url: `https://www.googleapis.com/robot/v1/metadata/x509/${process.env.FIREBASE_CLIENT_EMAIL}`
-          }
-          
-          admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount)
-          })
-        }
-        
-        const db = admin.firestore()
-        
-        // Guardar vinculación
+        const db = initFirebase()
         await db.collection('telegram_users').add({
           firebaseUserId: firebaseUserId,
           telegramChatId: chatId.toString(), // Solo el chatId, sin el comando
@@ -126,24 +103,29 @@ exports.handler = async (event, context) => {
     
     // Procesar transacción
     const transaction = parseTransaction(text)
-    
+
     if (transaction) {
       console.log('✅ Transacción reconocida:', JSON.stringify(transaction))
-      
-      // Guardar en Firebase
-      const saved = await saveTransactionToFirebase(transaction, userLink.firebaseUserId)
-      
-      if (saved) {
-        // Enviar confirmación
-        await sendTelegramMessage(chatId, 
+
+      try {
+        const db = initFirebase()
+        await saveTransaction(db, userLink.firebaseUserId, {
+          type:       transaction.type,
+          amount:     transaction.amount,
+          categoryId: toCategoryId(transaction.category),
+          note:       transaction.description,
+          date:       toDateString(transaction.date),
+        })
+        await sendTelegramMessage(chatId,
           `✅ **Transacción guardada**\n\n` +
           `💰 **Tipo:** ${transaction.type === 'expense' ? 'Gasto' : 'Ingreso'}\n` +
           `💵 **Monto:** Q${transaction.amount}\n` +
           `📂 **Categoría:** ${transaction.category}\n` +
           `📝 **Descripción:** ${transaction.description}\n\n` +
-          `¡Revisa tu app web para ver todos tus datos!`
+          `¡Revisa tu app para ver todos tus datos!`
         )
-      } else {
+      } catch (err) {
+        console.error('Error guardando transacción:', err)
         await sendTelegramMessage(chatId, '❌ Error guardando la transacción. Intenta de nuevo.')
       }
     } else {
@@ -177,35 +159,13 @@ exports.handler = async (event, context) => {
   }
 }
 
+// ── Firebase helpers (now in utils/db.js) — only keeping checkUserLink here ──
+
 // Función para verificar si el usuario está vinculado
 async function checkUserLink(telegramChatId) {
   try {
     console.log(`🔍 Verificando vinculación para chatId: ${telegramChatId}`)
-    
-    // Importar Firebase Admin SDK
-    const admin = require('firebase-admin')
-    
-    // Inicializar Firebase Admin si no está inicializado
-    if (!admin.apps.length) {
-      const serviceAccount = {
-        type: "service_account",
-        project_id: process.env.FIREBASE_PROJECT_ID,
-        private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-        private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-        client_email: process.env.FIREBASE_CLIENT_EMAIL,
-        client_id: process.env.FIREBASE_CLIENT_ID,
-        auth_uri: "https://accounts.google.com/o/oauth2/auth",
-        token_uri: "https://oauth2.googleapis.com/token",
-        auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-        client_x509_cert_url: `https://www.googleapis.com/robot/v1/metadata/x509/${process.env.FIREBASE_CLIENT_EMAIL}`
-      }
-      
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-      })
-    }
-    
-    const db = admin.firestore()
+    const db = initFirebase()
     
     // Buscar usuario vinculado
     console.log(`🔍 Buscando en colección telegram_users con chatId: ${telegramChatId.toString()}`)
@@ -235,78 +195,6 @@ async function checkUserLink(telegramChatId) {
   } catch (error) {
     console.error('Error verificando vinculación:', error)
     return null
-  }
-}
-
-// Función para guardar transacción en Firebase
-async function saveTransactionToFirebase(transaction, firebaseUserId) {
-  try {
-    console.log(`💾 Guardando transacción para usuario: ${firebaseUserId}`)
-    
-    // Importar Firebase Admin SDK
-    const admin = require('firebase-admin')
-    
-    // Inicializar Firebase Admin si no está inicializado
-    if (!admin.apps.length) {
-      const serviceAccount = {
-        type: "service_account",
-        project_id: process.env.FIREBASE_PROJECT_ID,
-        private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-        private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-        client_email: process.env.FIREBASE_CLIENT_EMAIL,
-        client_id: process.env.FIREBASE_CLIENT_ID,
-        auth_uri: "https://accounts.google.com/o/oauth2/auth",
-        token_uri: "https://oauth2.googleapis.com/token",
-        auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-        client_x509_cert_url: `https://www.googleapis.com/robot/v1/metadata/x509/${process.env.FIREBASE_CLIENT_EMAIL}`
-      }
-      
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-      })
-    }
-    
-    const db = admin.firestore()
-    
-    // Obtener el documento del usuario
-    const userRef = db.collection('users').doc(firebaseUserId)
-    console.log(`🔍 Obteniendo documento del usuario: ${firebaseUserId}`)
-    const userDoc = await userRef.get()
-    
-    let transactions = []
-    if (userDoc.exists) {
-      const userData = userDoc.data()
-      transactions = userData.transactions || []
-      console.log(`📊 Transacciones existentes: ${transactions.length}`)
-    } else {
-      console.log(`📝 Usuario no existe, creando nuevo documento`)
-    }
-    
-    // Agregar nueva transacción al array
-    const newTransaction = {
-      ...transaction,
-      id: `telegram_${Date.now()}`, // ID único para la transacción
-      createdAt: new Date().toISOString(), // Usar fecha de JavaScript en lugar de serverTimestamp
-      updatedAt: new Date().toISOString()  // Usar fecha de JavaScript en lugar de serverTimestamp
-    }
-    
-    console.log(`📝 Nueva transacción:`, JSON.stringify(newTransaction, null, 2))
-    transactions.push(newTransaction)
-    console.log(`📊 Total de transacciones después de agregar: ${transactions.length}`)
-    
-    // Guardar el array actualizado en el documento del usuario
-    console.log(`💾 Guardando en Firestore...`)
-    await userRef.set({
-      transactions: transactions,
-      lastUpdated: admin.firestore.FieldValue.serverTimestamp()
-    }, { merge: true })
-    console.log(`✅ Guardado exitoso en Firestore`)
-    
-    console.log(`✅ Transacción guardada exitosamente`)
-    return true
-  } catch (error) {
-    console.error('Error guardando transacción:', error)
-    return false
   }
 }
 
