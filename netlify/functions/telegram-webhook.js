@@ -89,14 +89,14 @@ exports.handler = async (event, context) => {
     
     if (!userLink) {
       // Usuario no vinculado, enviar instrucciones
-      await sendTelegramMessage(chatId, 
-        `🔗 **Buddy Finanzas Bot**\n\n` +
-        `Para usar este bot, primero debes vincular tu cuenta:\n\n` +
-        `1. Ve a tu app web de Buddy Finanzas\n` +
-        `2. Inicia sesión con tu cuenta\n` +
-        `3. Ve a Configuración → Telegram\n` +
-        `4. Envía el comando: \`/link ${chatId}\`\n\n` +
-        `¡Después podrás enviar transacciones directamente!`
+      await sendTelegramMessage(chatId,
+        `🔗 *Buddy Finanzas Bot*\n\n` +
+        `Para usar este bot, primero vincula tu cuenta:\n\n` +
+        `1. Abre la app Buddy Finanzas\n` +
+        `2. Ve a *Configuración → Telegram*\n` +
+        `3. Copia tu Firebase UID\n` +
+        `4. Envía aquí: \`/link TU_FIREBASE_UID\`\n\n` +
+        `Tu Telegram Chat ID es: \`${chatId}\``
       )
       return { statusCode: 200, body: 'OK' }
     }
@@ -109,6 +109,7 @@ exports.handler = async (event, context) => {
 
       try {
         const db = initFirebase()
+        console.log('💾 Guardando transacción para uid:', userLink.firebaseUserId)
         await saveTransaction(db, userLink.firebaseUserId, {
           type:       transaction.type,
           amount:     transaction.amount,
@@ -126,7 +127,7 @@ exports.handler = async (event, context) => {
         )
       } catch (err) {
         console.error('Error guardando transacción:', err)
-        await sendTelegramMessage(chatId, '❌ Error guardando la transacción. Intenta de nuevo.')
+        await sendTelegramMessage(chatId, `❌ Error: ${err.message || String(err)}`)
       }
     } else {
       // Enviar mensaje de ayuda
