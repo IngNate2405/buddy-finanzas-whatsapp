@@ -55,7 +55,7 @@ exports.handler = async (event, context) => {
         await db.collection('telegram_users').add({
           firebaseUserId: firebaseUserId,
           telegramChatId: chatId.toString(), // Solo el chatId, sin el comando
-          linkedAt: admin.firestore.FieldValue.serverTimestamp(),
+          linkedAt: new Date().toISOString(),
           userEmail: fromUser.first_name || 'Usuario'
         })
         
