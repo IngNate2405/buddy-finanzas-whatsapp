@@ -69,7 +69,8 @@ async function getDefaultWalletId(db, uid) {
   }
   const wallets = await db.collection(`users/${uid}/wallets`).limit(1).get()
   if (!wallets.empty) return wallets.docs[0].id
-  return null
+  const projectId = process.env.FIREBASE_PROJECT_ID || 'unknown'
+  throw new Error(`No wallet found for user ${uid} in project [${projectId}]`)
 }
 
 // ── Save transaction to correct subcollection + adjust wallet balance ─────────
