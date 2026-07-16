@@ -33,16 +33,18 @@ exports.handler = async (event, context) => {
       .replace(/[¿?]/g, '')
       .trim()
     
-    if (textLower.includes('cual es mi id') || textLower.includes('cual es mi user id') || 
+    if (textLower.includes('cual es mi id') || textLower.includes('cual es mi user id') ||
         textLower.includes('mi id') || textLower.includes('mi user id') ||
         text === '/myid') {
-      await sendTelegramMessage(chatId, 
-        `🆔 **Tu User ID de Firebase:**\n\n` +
+      await sendTelegramMessage(chatId,
+        `📱 *Tu Telegram Chat ID:*\n\n` +
         `\`${chatId}\`\n\n` +
-        `📋 **Para usar en shortcuts:**\n` +
-        `Copia este ID y úsalo en tu shortcut de iPhone.\n\n` +
-        `💡 **Ejemplo de uso:**\n` +
-        `\`{"text": "mensaje", "userId": "${chatId}"}\``
+        `_Este es tu Chat ID de Telegram, NO tu Firebase UID._\n\n` +
+        `Para vincular tu cuenta:\n` +
+        `1\\. Abre la app Buddy Finanzas\n` +
+        `2\\. Ve a Configuración → Telegram\n` +
+        `3\\. Copia tu *Firebase UID* que aparece ahí\n` +
+        `4\\. Envía aquí: /link TU\\_FIREBASE\\_UID`
       )
       return { statusCode: 200, body: 'OK' }
     }
@@ -165,34 +167,23 @@ exports.handler = async (event, context) => {
 // Función para verificar si el usuario está vinculado
 async function checkUserLink(telegramChatId) {
   try {
-    console.log(`🔍 Verificando vinculación para chatId: ${telegramChatId}`)
     const db = initFirebase()
-    
-    // Buscar usuario vinculado
-    console.log(`🔍 Buscando en colección telegram_users con chatId: ${telegramChatId.toString()}`)
-    const telegramUsers = await db.collection('telegram_users')
-      .where('telegramChatId', '==', telegramChatId.toString())
+    const chatIdStr = telegramChatId.toString()
+    console.log(`🔍 Buscando telegram_users con chatId: ${chatIdStr}`)
+
+    const snap = await db.collection('telegram_users')
+      .where('telegramChatId', '==', chatIdStr)
+      .limit(1)
       .get()
-    
-    console.log(`📊 Resultados de la consulta: ${telegramUsers.size} documentos encontrados`)
-    
-    if (!telegramUsers.empty) {
-      const userData = telegramUsers.docs[0].data()
-      console.log(`✅ Usuario vinculado encontrado: ${userData.firebaseUserId}`)
-      console.log(`📋 Datos del usuario:`, JSON.stringify(userData, null, 2))
+
+    if (!snap.empty) {
+      const userData = snap.docs[0].data()
+      console.log(`✅ Usuario vinculado: ${userData.firebaseUserId}`)
       return userData
-    } else {
-      console.log(`❌ Usuario no vinculado para chatId: ${telegramChatId}`)
-      
-      // Buscar todos los documentos para debugging
-      const allUsers = await db.collection('telegram_users').get()
-      console.log(`🔍 Total de usuarios vinculados: ${allUsers.size}`)
-      allUsers.forEach(doc => {
-        console.log(`📋 Usuario: ${doc.id} - Datos:`, JSON.stringify(doc.data(), null, 2))
-      })
-      
-      return null
     }
+
+    console.log(`❌ No vinculado para chatId: ${chatIdStr}`)
+    return null
   } catch (error) {
     console.error('Error verificando vinculación:', error)
     return null
