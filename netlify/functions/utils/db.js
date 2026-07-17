@@ -101,4 +101,28 @@ async function saveTransaction(db, uid, { type, amount, categoryId, note, date }
   return walletId
 }
 
-module.exports = { initFirebase, toCategoryId, toDateString, saveTransaction }
+// ── Merchant map ──────────────────────────────────────────────────────────────
+function normalizeMerchant(name) {
+  return (name || '').toLowerCase().trim().replace(/\s+/g, ' ').substring(0, 100)
+}
+
+async function getMerchantCategory(db, merchantName) {
+  const key = normalizeMerchant(merchantName)
+  if (!key) return null
+  const snap = await db.doc(`merchant_map/${key}`).get()
+  return snap.exists ? snap.data().categoryId : null
+}
+
+async function saveMerchantCategory(db, merchantName, categoryId) {
+  const key = normalizeMerchant(merchantName)
+  if (!key) return
+  const ref = db.doc(`merchant_map/${key}`)
+  const snap = await ref.get()
+  if (snap.exists) {
+    await ref.update({ categoryId, usageCount: (snap.data().usageCount || 0) + 1, lastSeen: new Date().toISOString() })
+  } else {
+    await ref.set({ merchantName: key, categoryId, usageCount: 1, createdAt: new Date().toISOString(), lastSeen: new Date().toISOString() })
+  }
+}
+
+module.exports = { initFirebase, toCategoryId, toDateString, saveTransaction, getMerchantCategory, saveMerchantCategory }

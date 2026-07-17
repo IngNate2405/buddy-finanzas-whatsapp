@@ -1,4 +1,4 @@
-const { initFirebase, toCategoryId, toDateString, saveTransaction } = require('./utils/db')
+const { initFirebase, toCategoryId, toDateString, saveTransaction, getMerchantCategory, saveMerchantCategory } = require('./utils/db')
 
 exports.handler = async (event, context) => {
   console.log('🤖 Telegram webhook recibido:', JSON.stringify(event, null, 2))
@@ -112,10 +112,26 @@ exports.handler = async (event, context) => {
       try {
         const db = initFirebase()
         console.log('💾 Guardando transacción para uid:', userLink.firebaseUserId)
+
+        // Merchant map: check first, fallback to keyword classification
+        let categoryId = null
+        if (transaction.merchant) {
+          categoryId = await getMerchantCategory(db, transaction.merchant)
+          if (categoryId) {
+            console.log(`🗺️ Comercio conocido "${transaction.merchant}" → ${categoryId}`)
+          } else {
+            categoryId = toCategoryId(transaction.category)
+            await saveMerchantCategory(db, transaction.merchant, categoryId)
+            console.log(`🆕 Comercio nuevo "${transaction.merchant}" → ${categoryId} (guardado)`)
+          }
+        } else {
+          categoryId = toCategoryId(transaction.category)
+        }
+
         await saveTransaction(db, userLink.firebaseUserId, {
           type:       transaction.type,
           amount:     transaction.amount,
-          categoryId: toCategoryId(transaction.category),
+          categoryId,
           note:       transaction.description,
           date:       toDateString(transaction.date),
         })
@@ -410,24 +426,26 @@ function parseBAMTransaction(text) {
   let transactionType = 'expense' // Por defecto
   let description = ''
   
+  let merchantName = null
+
   if (text.includes('COMPRA')) {
     transactionType = 'expense'
     console.log('💸 Tipo: Gasto (COMPRA)')
-    
-    // Extraer descripción: desde COMPRA hasta el monto
+
     const compraMatch = text.match(/COMPRA\s+([^Q]+?)\s+del\s+\d{2}\/\d{2}\/\d{4}\s+por\s+Q\d+(?:\.\d{2})?/)
     if (compraMatch) {
-      description = `COMPRA ${compraMatch[1].trim()}`
+      merchantName = compraMatch[1].trim()
+      description = `COMPRA ${merchantName}`
     } else {
-      // Fallback: extraer todo después de COMPRA hasta el monto
       const fallbackMatch = text.match(/COMPRA\s+([^Q]+?)\s+Q\d+(?:\.\d{2})?/)
       if (fallbackMatch) {
-        description = `COMPRA ${fallbackMatch[1].trim()}`
+        merchantName = fallbackMatch[1].trim()
+        description = `COMPRA ${merchantName}`
       } else {
         description = 'COMPRA'
       }
     }
-    
+
   } else if (text.includes('CREDITO')) {
     transactionType = 'income'
     console.log('💵 Tipo: Ingreso (CREDITO)')
@@ -452,7 +470,8 @@ function parseBAMTransaction(text) {
     type: transactionType,
     category: category,
     description: description,
-    date: transactionDate, // Usar la fecha extraída del mensaje
+    date: transactionDate,
+    merchant: merchantName,
     source: 'telegram_bam'
   }
 }
