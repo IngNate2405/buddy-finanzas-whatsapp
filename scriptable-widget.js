@@ -6,7 +6,7 @@
 // 4. Agrega el widget "Scriptable" a tu pantalla de inicio y selecciona este script
 
 const UID     = "DxuAuPFtBIR0hjTIG2v7UcWPGcQ2"   // Tu Firebase UID
-const API_URL = "https://TU-SITIO.netlify.app/widget-summary"
+const API_URL = "https://buddywspserver.netlify.app/widget-summary"
 
 // ── Fetch data ──────────────────────────────────────────────────────────────
 let data = null
