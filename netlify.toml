@@ -30,3 +30,8 @@ status = 200
 from = "/add-transaction"
 to = "/.netlify/functions/add-transaction"
 status = 200
+
+[[redirects]]
+from = "/widget-summary"
+to = "/.netlify/functions/widget-summary"
+status = 200
