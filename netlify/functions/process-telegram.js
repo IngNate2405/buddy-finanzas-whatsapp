@@ -1,253 +1,152 @@
-const { initFirebase, toCategoryId, toDateString, saveTransaction } = require('./utils/db')
+const { initFirebase, toCategoryId, toDateString, saveTransaction, getMerchantCategory, saveMerchantCategory } = require('./utils/db')
 
-exports.handler = async (event, context) => {
-  console.log('📱 Procesando mensajes de Telegram...')
+exports.handler = async (event) => {
+  const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' }
+
   try {
-    console.log('➡️  HTTP Method:', event && event.httpMethod)
-    console.log('🧾 Headers (parciales):', event && event.headers ? JSON.stringify({
-      'content-type': event.headers['content-type'] || event.headers['Content-Type'],
-      'user-agent': event.headers['user-agent'] || event.headers['User-Agent'],
-      'content-length': event.headers['content-length'] || event.headers['Content-Length']
-    }) : 'sin headers')
-    // Log seguro del body (primeros 1000 chars máximo)
-    const rawBody = event && event.body ? (typeof event.body === 'string' ? event.body : JSON.stringify(event.body)) : ''
-    console.log('📦 Body (raw, truncado):', rawBody ? rawBody.substring(0, 1000) : 'sin body')
-  } catch (e) {
-    console.log('⚠️ Error logueando request:', e.message)
-  }
-  
-  try {
+    const body = JSON.parse(event.body || '{}')
+    const text   = body.mensaje || body.text || ''
+    const userId = body.userId  || body.firebaseUserId || ''
+
+    if (!text || !userId) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Faltan campos: mensaje y userId' }) }
+    }
+
+    console.log(`📨 Procesando para ${userId}: ${text.substring(0, 80)}`)
+
+    const transaction = parseTransaction(text)
+    if (!transaction) {
+      return { statusCode: 200, headers, body: JSON.stringify({ status: 'ignored', reason: 'No se reconoció como transacción' }) }
+    }
+
     const db = initFirebase()
-    
-    // Leer el cuerpo enviado (permitir pruebas directas)
-    let messages = []
-    try {
-      let body = event && event.body ? JSON.parse(event.body) : null
-      console.log('🧩 Body parsed keys:', body ? Object.keys(body) : [])
 
-      // Fallback: algunos Shortcuts envían el JSON como clave del objeto
-      // Ej: { "{\"mensaje\":{\"prueba\":\"\"},\"userId\":{\"830950655\":\"\"}}":{} }
-      if (body && Object.keys(body).length === 1 && typeof Object.keys(body)[0] === 'string') {
-        const onlyKey = Object.keys(body)[0]
-        try {
-          const reparsed = JSON.parse(onlyKey)
-          console.log('🔄 Reparse exitoso desde clave-string. Keys:', Object.keys(reparsed))
-          body = reparsed
-        } catch (e) {
-          console.log('⚠️ No se pudo reparsear la clave-string como JSON')
-        }
-      }
-
-      // Normalizar campos cuando vienen como objetos con clave vacía
-      const rawMensaje = body ? (body.mensaje ?? body.text) : undefined
-      const rawUserId = body ? (body.userId ?? body.firebaseUserId) : undefined
-      const mensajeStr = typeof rawMensaje === 'string' ? rawMensaje : (rawMensaje && typeof rawMensaje === 'object' ? Object.keys(rawMensaje)[0] || '' : '')
-      const userIdStr = typeof rawUserId === 'string' ? rawUserId : (rawUserId && typeof rawUserId === 'object' ? Object.keys(rawUserId)[0] || '' : '')
-
-      if (body && body.message) {
-        // Compatible con formato tipo Telegram simulado
-        messages = [{
-          id: body.message.message_id || Date.now(),
-          text: body.message.text || mensajeStr || '',
-          date: new Date().toISOString(),
-          sender: (body.message.from && body.message.from.id) || body.sender || 'unknown',
-          userId: userIdStr || null
-        }]
-      } else if (body && (mensajeStr)) {
-        // Formato simple: { mensaje|text, userId|firebaseUserId }
-        messages = [{
-          id: Date.now(),
-          text: mensajeStr || '',
-          date: new Date().toISOString(),
-          sender: 'shortcut',
-          userId: userIdStr || null
-        }]
+    // Merchant map
+    let categoryId = null
+    if (transaction.merchant) {
+      categoryId = await getMerchantCategory(db, transaction.merchant)
+      if (categoryId) {
+        console.log(`🗺️ Comercio conocido: ${transaction.merchant} → ${categoryId}`)
       } else {
-        console.log('ℹ️ Body sin campos esperados (message/text/mensaje).')
+        categoryId = toCategoryId(transaction.category)
+        await saveMerchantCategory(db, transaction.merchant, categoryId)
+        console.log(`🆕 Comercio nuevo: ${transaction.merchant} → ${categoryId}`)
       }
-    } catch (e) {
-      console.log('⚠️ Cuerpo no JSON o inválido, se usará arreglo vacío')
+    } else {
+      categoryId = toCategoryId(transaction.category)
     }
-    
-    // Si no hay cuerpo, no procesar mensajes por defecto
-    if (!messages.length) {
-      console.log('ℹ️ Sin mensajes de entrada. Retornando OK sin procesar.')
-      return {
-        statusCode: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'success', message: 'Sin mensajes para procesar', processed: 0, total: 0 })
-      }
-    }
-    
-    let processedCount = 0
-    
-    for (const message of messages) {
-      // Procesar transacción (o nota si no coincide)
-      const transaction = parseTransaction(message.text) || {
-        amount: 0,
-        type: 'note',
-        category: 'Miscellaneous',
-        description: message.text || 'nota',
-        date: new Date().toISOString(),
-        source: 'telegram-test'
-      }
-      
-      if (transaction) {
-        console.log(`✅ Transacción reconocida: ${JSON.stringify(transaction)}`)
-        
-        // Determinar usuario destino
-        let firebaseUserId = message.userId || null
-        // Si viene chatId (numérico) en lugar de Firebase UID, mapear desde telegram_users
-        if (firebaseUserId && /^\d+$/.test(String(firebaseUserId))) {
-          try {
-            console.log('🔗 userId parece chatId, intentando mapear en telegram_users…')
-            const byChat = await db.collection('telegram_users')
-              .where('telegramChatId', '==', String(firebaseUserId))
-              .get()
-            if (!byChat.empty) {
-              const data = byChat.docs[0].data()
-              firebaseUserId = data.firebaseUserId
-              console.log('✅ Mapeo chatId→firebaseUserId:', firebaseUserId)
-            } else {
-              console.log('⚠️ No se encontró mapeo para ese chatId en telegram_users')
-            }
-          } catch (e) {
-            console.log('⚠️ Error mapeando chatId:', e.message)
-          }
-        }
-        if (!firebaseUserId) {
-          const userQuery = await db.collection('telegram_users')
-            .where('telegramUserId', '==', message.sender)
-            .get()
-          if (!userQuery.empty) {
-            const userData = userQuery.docs[0].data()
-            firebaseUserId = userData.firebaseUserId
-          }
-        }
-        
-        if (firebaseUserId) {
-          await saveTransaction(db, firebaseUserId, {
-            type:       transaction.type,
-            amount:     transaction.amount,
-            categoryId: toCategoryId(transaction.category),
-            note:       transaction.description,
-            date:       toDateString(transaction.date || new Date()),
-          })
-          processedCount++
-          console.log(`💾 Transacción guardada para usuario: ${firebaseUserId}`)
-        } else {
-          console.log(`❌ Usuario no encontrado. Proporcione userId (Firebase UID) o un chatId que exista en telegram_users.`)
-        }
-      } else {
-        console.log(`❌ Transacción no reconocida: ${message.text}`)
-      }
-    }
-    
+
+    await saveTransaction(db, userId, {
+      type:       transaction.type,
+      amount:     transaction.amount,
+      categoryId,
+      note:       transaction.description,
+      date:       toDateString(transaction.date),
+    })
+
+    console.log(`✅ Guardado: ${transaction.type} Q${transaction.amount} (${categoryId})`)
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        status: 'success',
-        message: `Procesadas ${processedCount} transacciones`,
-        processed: processedCount,
-        total: messages.length
-      })
+      headers,
+      body: JSON.stringify({ status: 'ok', type: transaction.type, amount: transaction.amount, categoryId }),
     }
-    
-  } catch (error) {
-    console.error('🚨 Error procesando mensajes:', error)
-    return {
-      statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        status: 'error',
-        message: error.message
-      })
-    }
+
+  } catch (err) {
+    console.error('Error:', err)
+    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) }
   }
 }
 
-// Función para parsear transacciones
+// ── Parseo de transacciones ───────────────────────────────────────────────────
+
 function parseTransaction(text) {
-  const patterns = {
-    expense_patterns: [
-      /gast[éa]?\s*Q?\s*(\d+(?:\.\d{2})?)/i,
-      /pagu[éa]?\s*Q?\s*(\d+(?:\.\d{2})?)/i,
-      /compr[éa]?\s*Q?\s*(\d+(?:\.\d{2})?)/i,
-      /debit[óo]?\s*Q?\s*(\d+(?:\.\d{2})?)/i,
-      /retir[óo]?\s*Q?\s*(\d+(?:\.\d{2})?)/i,
-      /cobr[óo]?\s*Q?\s*(\d+(?:\.\d{2})?)/i
-    ],
-    income_patterns: [
-      /recib[íi]?\s*Q?\s*(\d+(?:\.\d{2})?)/i,
-      /gan[éa]?\s*Q?\s*(\d+(?:\.\d{2})?)/i,
-      /ingres[óo]?\s*Q?\s*(\d+(?:\.\d{2})?)/i,
-      /salario\s*Q?\s*(\d+(?:\.\d{2})?)/i
-    ]
+  if (text.includes('BAM Avisa:')) return parseBAM(text)
+  return parseManual(text)
+}
+
+function parseBAM(text) {
+  const amountMatch = text.match(/Q\s*(\d+(?:\.\d{2})?)/)
+  if (!amountMatch) return null
+  const amount = parseFloat(amountMatch[1])
+
+  // Fecha
+  let date = new Date().toISOString()
+  const dateMatch = text.match(/(\d{2})\/(\d{2})\/(\d{2,4})/)
+  if (dateMatch) {
+    let year = parseInt(dateMatch[3])
+    if (year < 100) year += 2000
+    date = new Date(year, parseInt(dateMatch[2]) - 1, parseInt(dateMatch[1])).toISOString()
   }
 
-  // Buscar patrones de gastos
-  for (const pattern of patterns.expense_patterns) {
-    const match = text.match(pattern)
-    if (match) {
-      const amount = parseFloat(match[1])
-      const category = classifyTransaction(text, 'expense')
-      return {
-        amount: amount,
-        type: 'expense',
-        category: category,
-        description: text,
-        date: new Date().toISOString(),
-        source: 'telegram'
-      }
-    }
+  let type = 'expense', description = '', merchant = null
+
+  if (text.includes('COMPRA')) {
+    type = 'expense'
+    const m = text.match(/COMPRA\s+(.+?)\s+del\s+\d{2}\/\d{2}\/\d{4}\s+por\s+Q/)
+           || text.match(/COMPRA\s+(.+?)\s+Q\d/)
+    if (m) { merchant = m[1].trim(); description = `COMPRA ${merchant}` }
+    else    { description = 'COMPRA' }
+  } else if (text.includes('CREDITO')) {
+    type = 'income'
+    const m = text.match(/CREDITO\s+(.+?)\s+Q\d/)
+    if (m) { merchant = m[1].trim(); description = `CREDITO ${merchant}` }
+    else    { description = 'CREDITO' }
+  } else {
+    return null
   }
 
-  // Buscar patrones de ingresos
-  for (const pattern of patterns.income_patterns) {
-    const match = text.match(pattern)
-    if (match) {
-      const amount = parseFloat(match[1])
-      const category = classifyTransaction(text, 'income')
-      return {
-        amount: amount,
-        type: 'income',
-        category: category,
-        description: text,
-        date: new Date().toISOString(),
-        source: 'telegram'
-      }
-    }
-  }
+  return { amount, type, category: classifyBAM(description, type), description, merchant, date, source: 'shortcut_bam' }
+}
 
+function parseManual(text) {
+  const expensePatterns = [
+    /gast[éea]+\s*Q?\s*(\d+(?:\.\d{2})?)/i,
+    /pagu[éea]+\s*Q?\s*(\d+(?:\.\d{2})?)/i,
+    /compr[éea]+\s*Q?\s*(\d+(?:\.\d{2})?)/i,
+  ]
+  const incomePatterns = [
+    /recib[íi]+\s*Q?\s*(\d+(?:\.\d{2})?)/i,
+    /(?:me\s+)?dieron\s*Q?\s*(\d+(?:\.\d{2})?)/i,
+    /gan[éea]+\s*Q?\s*(\d+(?:\.\d{2})?)/i,
+    /ingres[óo]+\s*Q?\s*(\d+(?:\.\d{2})?)/i,
+  ]
+
+  for (const p of expensePatterns) {
+    const m = text.match(p)
+    if (m) return { amount: parseFloat(m[1]), type: 'expense', category: classifyManual(text, 'expense'), description: text, merchant: null, date: new Date().toISOString(), source: 'shortcut_manual' }
+  }
+  for (const p of incomePatterns) {
+    const m = text.match(p)
+    if (m) return { amount: parseFloat(m[1]), type: 'income', category: classifyManual(text, 'income'), description: text, merchant: null, date: new Date().toISOString(), source: 'shortcut_manual' }
+  }
   return null
 }
 
-// Función para clasificar transacciones
-function classifyTransaction(text, transactionType) {
-  const textLower = text.toLowerCase()
-
-  if (transactionType === 'expense') {
-    if (textLower.includes('comida') || textLower.includes('restaurante') || textLower.includes('supermercado') || textLower.includes('café') || textLower.includes('comer')) {
-      return 'Food & drinks'
-    } else if (textLower.includes('gasolina') || textLower.includes('gas') || textLower.includes('transporte') || textLower.includes('taxi') || textLower.includes('uber') || textLower.includes('carro')) {
-      return 'Transportation'
-    } else if (textLower.includes('cine') || textLower.includes('entretenimiento') || textLower.includes('gym') || textLower.includes('deporte') || textLower.includes('fiesta')) {
-      return 'Entertainment'
-    } else if (textLower.includes('renta') || textLower.includes('servicio') || textLower.includes('internet') || textLower.includes('teléfono') || textLower.includes('luz') || textLower.includes('agua')) {
-      return 'Housing'
-    } else if (textLower.includes('ropa') || textLower.includes('farmacia') || textLower.includes('corte') || textLower.includes('cuidado')) {
-      return 'Lifestyle'
-    } else {
-      return 'Miscellaneous'
-    }
-  } else { // income
-    if (textLower.includes('salario') || textLower.includes('trabajo') || textLower.includes('sueldo') || textLower.includes('pago')) {
-      return 'Income'
-    } else if (textLower.includes('inversión') || textLower.includes('interés') || textLower.includes('dividendo')) {
-      return 'Investments'
-    } else {
-      return 'Other'
-    }
+function classifyBAM(text, type) {
+  const t = text.toLowerCase()
+  if (type === 'expense') {
+    if (/café|pollo|pizza|restaurante|comida|super|comer|mcdonalds|burger|kfc|subway/.test(t)) return 'Food'
+    if (/gasolina|gas|transporte|taxi|uber|carro|esso|shell/.test(t)) return 'Gas'
+    if (/cine|gym|deporte|entretenimiento/.test(t)) return 'Cinema'
+    if (/renta|internet|teléfono|luz|agua|servicio/.test(t)) return 'Rent'
+    if (/ropa|farmacia|corte/.test(t)) return 'Clothing'
+    return 'Miscellaneous'
   }
+  if (/salario|sueldo|trabajo|pago|credito/.test(text.toLowerCase())) return 'Salary'
+  return 'Other'
+}
+
+function classifyManual(text, type) {
+  const t = text.toLowerCase()
+  if (type === 'expense') {
+    if (/comida|restaurante|café|super|pizza|pollo/.test(t)) return 'Food'
+    if (/gasolina|gas|uber|taxi|carro/.test(t)) return 'Gas'
+    if (/cine|gym|entretenimiento/.test(t)) return 'Cinema'
+    if (/renta|servicio|internet|luz/.test(t)) return 'Rent'
+    return 'Miscellaneous'
+  }
+  if (/salario|sueldo|trabajo/.test(t)) return 'Salary'
+  return 'Other'
 }
