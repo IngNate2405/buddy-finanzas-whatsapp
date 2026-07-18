@@ -7,6 +7,7 @@
 
 const UID     = "DxuAuPFtBIR0hjTIG2v7UcWPGcQ2"   // Tu Firebase UID
 const API_URL = "https://buddywspserver.netlify.app/widget-summary"
+const APP_URL = "https://finanzas-nate.vercel.app"
 
 // ── Fetch data ──────────────────────────────────────────────────────────────
 let data = null
@@ -142,6 +143,7 @@ if (!data || data.error) {
   }
 }
 
+widget.url = APP_URL
 Script.setWidget(widget)
 if (config.runsInApp) widget.presentMedium()
 
