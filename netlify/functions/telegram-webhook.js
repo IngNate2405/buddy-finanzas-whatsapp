@@ -430,16 +430,16 @@ function parseBAMTransaction(text) {
   
   let merchantName = null
 
-  if (text.includes('COMPRA')) {
+  if (/compra/i.test(text)) {
     transactionType = 'expense'
     console.log('💸 Tipo: Gasto (COMPRA)')
 
-    const compraMatch = text.match(/COMPRA\s+([^Q]+?)\s+del\s+\d{2}\/\d{2}\/\d{4}\s+por\s+Q\d+(?:\.\d{2})?/)
+    const compraMatch = text.match(/compra\s+([^Q]+?)\s+del\s+\d{2}\/\d{2}\/\d{2,4}\s+por\s+Q\s*\d+(?:\.\d{2})?/i)
     if (compraMatch) {
       merchantName = compraMatch[1].trim()
       description = `COMPRA ${merchantName}`
     } else {
-      const fallbackMatch = text.match(/COMPRA\s+([^Q]+?)\s+Q\d+(?:\.\d{2})?/)
+      const fallbackMatch = text.match(/compra\s+([^Q]+?)\s+Q\s*\d+(?:\.\d{2})?/i)
       if (fallbackMatch) {
         merchantName = fallbackMatch[1].trim()
         description = `COMPRA ${merchantName}`
@@ -448,12 +448,12 @@ function parseBAMTransaction(text) {
       }
     }
 
-  } else if (text.includes('CREDITO')) {
+  } else if (/credito/i.test(text)) {
     transactionType = 'income'
     console.log('💵 Tipo: Ingreso (CREDITO)')
-    
-    // Extraer descripción: desde CREDITO hasta el monto
-    const creditoMatch = text.match(/CREDITO\s+([^Q]+?)\s+Q\d+(?:\.\d{2})?/)
+
+    const creditoMatch = text.match(/credito\s+(.+?)\s+(?:el\s+)?\d{2}\/\d{2}\/\d{2,4}/i)
+                      || text.match(/credito\s+([^Q]+?)\s+Q\s*\d+(?:\.\d{2})?/i)
     if (creditoMatch) {
       description = `CREDITO ${creditoMatch[1].trim()}`
     } else {

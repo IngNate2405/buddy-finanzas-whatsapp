@@ -87,16 +87,17 @@ function parseBAM(text) {
 
   let type = 'expense', description = '', merchant = null
 
-  if (text.includes('COMPRA')) {
+  if (/compra/i.test(text)) {
     type = 'expense'
-    const m = text.match(/COMPRA\s+(.+?)\s+del\s+\d{2}\/\d{2}\/\d{4}\s+por\s+Q/)
-           || text.match(/COMPRA\s+(.+?)\s+Q\d/)
+    const m = text.match(/compra\s+(.+?)\s+del\s+\d{2}\/\d{2}\/\d{2,4}\s+por\s+Q/i)
+           || text.match(/compra\s+(.+?)\s+Q\s*\d/i)
     if (m) { merchant = m[1].trim(); description = `COMPRA ${merchant}` }
     else    { description = 'COMPRA' }
-  } else if (text.includes('CREDITO')) {
+  } else if (/credito/i.test(text)) {
     type = 'income'
-    const m = text.match(/CREDITO\s+(.+?)\s+Q\d/)
-    if (m) { merchant = m[1].trim(); description = `CREDITO ${merchant}` }
+    const m = text.match(/credito\s+(.+?)\s+(?:el\s+)?\d{2}\/\d{2}\/\d{2,4}/i)
+           || text.match(/credito\s+(.+?)\s+Q\s*\d/i)
+    if (m) { description = `CREDITO ${m[1].trim()}` }
     else    { description = 'CREDITO' }
   } else {
     return null
