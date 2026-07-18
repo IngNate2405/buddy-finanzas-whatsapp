@@ -99,6 +99,12 @@ function parseBAM(text) {
            || text.match(/credito\s+(.+?)\s+Q\s*\d/i)
     if (m) { description = `CREDITO ${m[1].trim()}` }
     else    { description = 'CREDITO' }
+  } else if (/debito/i.test(text)) {
+    type = 'expense'
+    const m = text.match(/debito\s+(.+?)\s+(?:el\s+)?\d{2}\/\d{2}\/\d{2,4}/i)
+           || text.match(/debito\s+(.+?)\s+Q\s*\d/i)
+    if (m) { description = `DEBITO ${m[1].trim()}` }
+    else    { description = 'DEBITO' }
   } else {
     return null
   }

@@ -459,6 +459,18 @@ function parseBAMTransaction(text) {
     } else {
       description = 'CREDITO'
     }
+
+  } else if (/debito/i.test(text)) {
+    transactionType = 'expense'
+    console.log('💸 Tipo: Gasto (DEBITO)')
+
+    const debitoMatch = text.match(/debito\s+(.+?)\s+(?:el\s+)?\d{2}\/\d{2}\/\d{2,4}/i)
+                     || text.match(/debito\s+([^Q]+?)\s+Q\s*\d+(?:\.\d{2})?/i)
+    if (debitoMatch) {
+      description = `DEBITO ${debitoMatch[1].trim()}`
+    } else {
+      description = 'DEBITO'
+    }
   }
   
   console.log('📝 Descripción extraída:', description)
