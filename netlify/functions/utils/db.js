@@ -125,4 +125,50 @@ async function saveMerchantCategory(db, merchantName, categoryId) {
   }
 }
 
-module.exports = { initFirebase, toCategoryId, toDateString, saveTransaction, getMerchantCategory, saveMerchantCategory }
+// ── Gemini AI categorization ──────────────────────────────────────────────────
+const VALID_CATEGORIES = ['food','gas','car_costs','cinema','entertainment','rent','housing','clothes','lifestyle','salary','investments','income','misc']
+
+async function getCategoryFromGemini(merchantName, description) {
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) return null
+
+  const prompt = `Classify this purchase into ONE category ID. Respond with ONLY the category ID, nothing else.
+
+Purchase: "${merchantName || description}"
+
+Categories:
+- food (restaurants, cafes, supermarkets, food)
+- gas (gas stations, fuel)
+- car_costs (car maintenance, parking, tolls, car wash)
+- cinema (movies, theater)
+- entertainment (gym, sports, concerts, games, streaming)
+- rent (rent, mortgage)
+- housing (utilities, internet, electricity, water, phone bill)
+- clothes (clothing, shoes, accessories)
+- lifestyle (beauty, pharmacy, haircut, personal care)
+- salary (income from work, salary)
+- investments (dividends, interest, returns)
+- income (other income received)
+- misc (anything else)
+
+Category ID:`
+
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+    })
+    const data = await res.json()
+    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim().toLowerCase() || ''
+    const categoryId = VALID_CATEGORIES.find(c => raw.includes(c)) || null
+    console.log(`🤖 Gemini: "${merchantName}" → ${categoryId} (raw: "${raw}")`)
+    return categoryId
+  } catch (err) {
+    console.error('Gemini error:', err.message)
+    return null
+  }
+}
+
+module.exports = { initFirebase, toCategoryId, toDateString, saveTransaction, getMerchantCategory, saveMerchantCategory, getCategoryFromGemini }

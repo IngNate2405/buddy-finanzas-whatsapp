@@ -1,4 +1,4 @@
-const { initFirebase, toCategoryId, toDateString, saveTransaction, getMerchantCategory, saveMerchantCategory } = require('./utils/db')
+const { initFirebase, toCategoryId, toDateString, saveTransaction, getMerchantCategory, saveMerchantCategory, getCategoryFromGemini } = require('./utils/db')
 
 exports.handler = async (event) => {
   const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
@@ -23,16 +23,17 @@ exports.handler = async (event) => {
 
     const db = initFirebase()
 
-    // Merchant map
+    // 1. Merchant map, 2. Gemini, 3. Keywords
     let categoryId = null
     if (transaction.merchant) {
       categoryId = await getMerchantCategory(db, transaction.merchant)
       if (categoryId) {
-        console.log(`🗺️ Comercio conocido: ${transaction.merchant} → ${categoryId}`)
+        console.log(`🗺️ Mapa: ${transaction.merchant} → ${categoryId}`)
       } else {
-        categoryId = toCategoryId(transaction.category)
+        categoryId = await getCategoryFromGemini(transaction.merchant, transaction.description)
+        if (!categoryId) categoryId = toCategoryId(transaction.category)
         await saveMerchantCategory(db, transaction.merchant, categoryId)
-        console.log(`🆕 Comercio nuevo: ${transaction.merchant} → ${categoryId}`)
+        console.log(`💾 Guardado: ${transaction.merchant} → ${categoryId}`)
       }
     } else {
       categoryId = toCategoryId(transaction.category)
