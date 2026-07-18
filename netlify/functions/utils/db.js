@@ -161,6 +161,7 @@ Category ID:`
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
     })
     const data = await res.json()
+    if (!data?.candidates) console.log(`🤖 Gemini error response:`, JSON.stringify(data).substring(0, 300))
     const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim().toLowerCase() || ''
     const categoryId = VALID_CATEGORIES.find(c => raw.includes(c)) || null
     console.log(`🤖 Gemini: "${merchantName}" → ${categoryId} (raw: "${raw}")`)
