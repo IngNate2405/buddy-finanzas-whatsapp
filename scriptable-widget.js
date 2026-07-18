@@ -4,10 +4,15 @@
 // 2. Abre Scriptable → "+" → pega este script → guarda como "BuddyFinanzas"
 // 3. Agrega widget Scriptable al inicio → Edit Widget → selecciona el script
 
-const UID     = "DxuAuPFtBIR0hjTIG2v7UcWPGcQ2"
-const API_URL = "https://buddywspserver.netlify.app/widget-summary"
-const APP_URL = "https://finanzas-nate.vercel.app"
-const NEW_TX  = `${APP_URL}/transacciones/nueva`
+const UID           = "DxuAuPFtBIR0hjTIG2v7UcWPGcQ2"
+const API_URL       = "https://buddywspserver.netlify.app/widget-summary"
+const APP_URL       = "https://finanzas-nate.vercel.app"
+const NEW_TX        = `${APP_URL}/transacciones/nueva`
+const SHORTCUT_NAME = "BuddyFinanzas"  // nombre exacto del Shortcut en tu iPhone
+
+function scUrl(input) {
+  return `shortcuts://run-shortcut?name=${encodeURIComponent(SHORTCUT_NAME)}&input=${encodeURIComponent(input)}`
+}
 
 // Categorías de acceso rápido (emoji, color, categoryId de la app)
 const QUICK_CATS = [
@@ -43,7 +48,7 @@ grad.colors    = [C.bg1, C.bg2]
 grad.locations = [0, 1]
 widget.backgroundGradient = grad
 widget.setPadding(14, 14, 14, 14)
-widget.url = APP_URL
+widget.url = scUrl("home")
 
 if (!data || data.error) {
   const t = widget.addText("No se pudo cargar")
@@ -85,7 +90,7 @@ if (!data || data.error) {
       const cat = QUICK_CATS[idx]
       const btn = row.addImage(makeCatButton(cat.emoji, new Color(cat.color), btnSize))
       btn.imageSize = new Size(btnSize, btnSize)
-      btn.url = `${NEW_TX}?category=${cat.id}`
+      btn.url = scUrl(cat.id)
     }
   }
 
@@ -98,7 +103,7 @@ if (!data || data.error) {
 
   const plusBtn = plusCol.addImage(makePlusButton(btnSize))
   plusBtn.imageSize = new Size(btnSize, btnSize)
-  plusBtn.url = NEW_TX
+  plusBtn.url = scUrl("nueva")
 
   if (isLarge) {
     // Stats + recientes en widget grande
