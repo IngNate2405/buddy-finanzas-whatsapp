@@ -103,7 +103,7 @@ async function saveTransaction(db, uid, { type, amount, categoryId, note, date }
 
 // ── Merchant map ──────────────────────────────────────────────────────────────
 function normalizeMerchant(name) {
-  return (name || '').toLowerCase().trim().replace(/\s+/g, ' ').substring(0, 100)
+  return (name || '').toLowerCase().trim().replace(/\//g, '-').replace(/\s+/g, ' ').substring(0, 100)
 }
 
 async function getMerchantCategory(db, merchantName) {
