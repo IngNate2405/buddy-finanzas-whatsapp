@@ -6,6 +6,8 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' }
 
   try {
+    console.log('📦 Raw body:', JSON.stringify(event.body).substring(0, 200))
+    console.log('📦 Content-Type:', event.headers?.['content-type'])
     const body = JSON.parse(event.body || '{}')
     const text   = body.mensaje || body.text || ''
     const userId = body.userId  || body.firebaseUserId || ''
