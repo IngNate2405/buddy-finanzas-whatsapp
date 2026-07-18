@@ -125,11 +125,11 @@ async function saveMerchantCategory(db, merchantName, categoryId) {
   }
 }
 
-// ── Gemini AI categorization ──────────────────────────────────────────────────
+// ── Groq AI categorization ────────────────────────────────────────────────────
 const VALID_CATEGORIES = ['food','gas','car_costs','cinema','entertainment','rent','housing','clothes','lifestyle','salary','investments','income','misc']
 
 async function getCategoryFromGemini(merchantName, description) {
-  const apiKey = process.env.GEMINI_API_KEY
+  const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) return null
 
   const prompt = `Classify this purchase into ONE category ID. Respond with ONLY the category ID, nothing else.
@@ -154,20 +154,24 @@ Categories:
 Category ID:`
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`
-    const res = await fetch(url, {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 10,
+        temperature: 0,
+      }),
     })
     const data = await res.json()
-    if (!data?.candidates) console.log(`🤖 Gemini error response:`, JSON.stringify(data).substring(0, 300))
-    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim().toLowerCase() || ''
+    if (!data?.choices) console.log(`🤖 Groq error response:`, JSON.stringify(data).substring(0, 300))
+    const raw = data?.choices?.[0]?.message?.content?.trim().toLowerCase() || ''
     const categoryId = VALID_CATEGORIES.find(c => raw.includes(c)) || null
-    console.log(`🤖 Gemini: "${merchantName}" → ${categoryId} (raw: "${raw}")`)
+    console.log(`🤖 Groq: "${merchantName}" → ${categoryId} (raw: "${raw}")`)
     return categoryId
   } catch (err) {
-    console.error('Gemini error:', err.message)
+    console.error('Groq error:', err.message)
     return null
   }
 }
