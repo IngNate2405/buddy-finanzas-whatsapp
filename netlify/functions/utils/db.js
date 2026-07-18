@@ -74,7 +74,7 @@ async function getDefaultWalletId(db, uid) {
 }
 
 // ── Save transaction to correct subcollection + adjust wallet balance ─────────
-async function saveTransaction(db, uid, { type, amount, categoryId, note, date }) {
+async function saveTransaction(db, uid, { type, amount, categoryId, note, date, merchant }) {
   const walletId = await getDefaultWalletId(db, uid)
   if (!walletId) throw new Error(`No wallet found for user ${uid}`)
 
@@ -87,6 +87,7 @@ async function saveTransaction(db, uid, { type, amount, categoryId, note, date }
     createdAt: new Date().toISOString(),
   }
   if (note) txData.note = note
+  if (merchant) txData.merchant = merchant
 
   await db.collection(`users/${uid}/transactions`).add(txData)
 

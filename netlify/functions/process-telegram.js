@@ -48,6 +48,7 @@ exports.handler = async (event) => {
       categoryId,
       note:       transaction.description,
       date:       toDateString(transaction.date),
+      merchant:   transaction.merchant || undefined,
     })
 
     console.log(`✅ Guardado: ${transaction.type} Q${transaction.amount} (${categoryId})`)

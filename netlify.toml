@@ -35,3 +35,8 @@ status = 200
 from = "/widget-summary"
 to = "/.netlify/functions/widget-summary"
 status = 200
+
+[[redirects]]
+from = "/update-merchant"
+to = "/.netlify/functions/update-merchant"
+status = 200

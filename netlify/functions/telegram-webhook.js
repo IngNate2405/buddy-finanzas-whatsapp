@@ -135,6 +135,7 @@ exports.handler = async (event, context) => {
           categoryId,
           note:       transaction.description,
           date:       toDateString(transaction.date),
+          merchant:   transaction.merchant || undefined,
         })
         await sendTelegramMessage(chatId,
           `✅ **Transacción guardada**\n\n` +
