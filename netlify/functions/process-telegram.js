@@ -72,6 +72,7 @@ function parseTransaction(text) {
 }
 
 function parseBAM(text) {
+  if (/rechazad[ao]/i.test(text)) return null
   const amountMatch = text.match(/Q\s*(\d+(?:\.\d{2})?)/)
   if (!amountMatch) return null
   const amount = parseFloat(amountMatch[1])

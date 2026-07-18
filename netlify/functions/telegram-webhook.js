@@ -392,7 +392,12 @@ function extractRelativeDate(text) {
 // Función específica para parsear mensajes del banco BAM
 function parseBAMTransaction(text) {
   console.log('🏦 Procesando mensaje BAM:', text)
-  
+
+  if (/rechazad[ao]/i.test(text)) {
+    console.log('🚫 Transacción rechazada, ignorando')
+    return null
+  }
+
   // Extraer el monto (Q seguido de números)
   const amountMatch = text.match(/Q\s*(\d+(?:\.\d{2})?)/)
   if (!amountMatch) {
