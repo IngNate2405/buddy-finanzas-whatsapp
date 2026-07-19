@@ -30,6 +30,7 @@ grad.locations = [0, 1]
 w.backgroundGradient = grad
 w.setPadding(16, 16, 16, 16)
 w.url = APP_URL
+w.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000) // refresca cada ~5 min
 
 if (!data || data.error) {
   const t = w.addText("Sin conexión")
