@@ -4,26 +4,81 @@
 // 2. Abre Scriptable → "+" → pega este script → guarda como "BuddyFinanzas"
 // 3. Agrega widget Scriptable al inicio → Edit Widget → selecciona el script
 
-const UID           = "DxuAuPFtBIR0hjTIG2v7UcWPGcQ2"
-const API_URL       = "https://buddywspserver.netlify.app/widget-summary"
-const APP_URL       = "https://finanzas-nate.vercel.app"
-const NEW_TX        = `${APP_URL}/transacciones/nueva`
-const SC_HOME = "shortcuts://run-shortcut?name=BuddyFinanzas"
-const SC_NUEVA = "shortcuts://run-shortcut?name=BuddyNueva"
+const UID     = "DxuAuPFtBIR0hjTIG2v7UcWPGcQ2"
+const API_URL = "https://buddywspserver.netlify.app/widget-summary"
+const ADD_URL = "https://buddywspserver.netlify.app/add-transaction"
+const APP_URL = "https://finanzas-nate.vercel.app"
 
-function scCat(categoryId) {
-  return `${SC_NUEVA}&input=${encodeURIComponent(categoryId)}`
-}
-
-// Categorías de acceso rápido (emoji, color, categoryId de la app)
+// Categorías de acceso rápido
 const QUICK_CATS = [
-  { emoji: "🍽️", color: "#FF6B9D", id: "food"          },
-  { emoji: "⛽",  color: "#F59E0B", id: "gas"           },
-  { emoji: "🛍️", color: "#8B5CF6", id: "lifestyle"     },
-  { emoji: "🎬",  color: "#3B82F6", id: "entertainment" },
+  { emoji: "🍽️", label: "Comida",        color: "#FF6B9D", id: "food"          },
+  { emoji: "⛽",  label: "Gasolina",      color: "#F59E0B", id: "gas"           },
+  { emoji: "🛍️", label: "Estilo de vida",color: "#8B5CF6", id: "lifestyle"     },
+  { emoji: "🎬",  label: "Ocio",          color: "#3B82F6", id: "entertainment" },
 ]
 
-// ── Fetch ─────────────────────────────────────────────────────────────────────
+// ── ¿Se ejecuta desde un botón del widget? ───────────────────────────────────
+const q = args.queryParameters || {}
+
+if (q.action === 'new') {
+  // Mostrar diálogo nativo para registrar transacción rápida
+  const cat = QUICK_CATS.find(c => c.id === q.category)
+  const label = cat ? `${cat.emoji} ${cat.label}` : '➕ Nueva transacción'
+
+  const alert = new Alert()
+  alert.title = label
+  alert.message = 'Ingresa el monto (Q)'
+  alert.addTextField('0.00', '')
+  alert.addAction('Guardar')
+  alert.addCancelAction('Cancelar')
+
+  const choice = await alert.presentAlert()
+
+  if (choice === 0) {
+    const amount = parseFloat(alert.textFieldValue(0).replace(',', '.'))
+    if (amount > 0) {
+      const now = new Date()
+      const date = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
+
+      const req = new Request(ADD_URL)
+      req.method = 'POST'
+      req.headers = { 'Content-Type': 'application/json' }
+      req.body = JSON.stringify({
+        uid: UID,
+        type: 'expense',
+        amount,
+        categoryId: q.category || 'misc',
+        date,
+      })
+
+      try {
+        await req.loadJSON()
+        const ok = new Alert()
+        ok.title = '✅ Guardado'
+        ok.message = `Q ${amount.toFixed(2)} en ${cat ? cat.label : 'misc'}`
+        ok.addAction('OK')
+        await ok.presentAlert()
+      } catch (e) {
+        const err = new Alert()
+        err.title = '❌ Error'
+        err.message = 'No se pudo guardar. Revisa tu conexión.'
+        err.addAction('OK')
+        await err.presentAlert()
+      }
+    }
+  }
+
+  Script.complete()
+  return
+}
+
+if (q.action === 'open') {
+  Safari.open(APP_URL)
+  Script.complete()
+  return
+}
+
+// ── Fetch datos para el widget ────────────────────────────────────────────────
 let data = null
 try {
   const req = new Request(`${API_URL}?uid=${UID}`)
@@ -31,7 +86,7 @@ try {
   data = await req.loadJSON()
 } catch (e) { data = null }
 
-// ── Colors ────────────────────────────────────────────────────────────────────
+// ── Colores ───────────────────────────────────────────────────────────────────
 const C = {
   bg1:    new Color("#131320"),
   bg2:    new Color("#1E1040"),
@@ -49,7 +104,8 @@ grad.colors    = [C.bg1, C.bg2]
 grad.locations = [0, 1]
 widget.backgroundGradient = grad
 widget.setPadding(14, 14, 14, 14)
-widget.url = SC_HOME
+// Tap en el gauge/fondo → abre la app
+widget.url = `scriptable:///run?scriptName=BuddyFinanzas&action=open`
 
 if (!data || data.error) {
   const t = widget.addText("No se pudo cargar")
@@ -63,7 +119,7 @@ if (!data || data.error) {
 
   const isLarge = config.widgetFamily === 'large'
 
-  // ── Fila principal: gauge + botones ────────────────────────────────────────
+  // ── Fila principal: gauge + botones ──────────────────────────────────────
   const mainRow = widget.addStack()
   mainRow.layoutHorizontally()
   mainRow.centerAlignContent()
@@ -75,7 +131,7 @@ if (!data || data.error) {
 
   mainRow.addSpacer(10)
 
-  // Botones derecha (2x2 grid)
+  // Botones 2x2 de categorías
   const btnSize = isLarge ? 54 : 46
   const right = mainRow.addStack()
   right.layoutVertically()
@@ -87,27 +143,25 @@ if (!data || data.error) {
     row.spacing = 8
 
     for (let j = 0; j < 2; j++) {
-      const idx = i * 2 + j
-      const cat = QUICK_CATS[idx]
+      const cat = QUICK_CATS[i * 2 + j]
       const btn = row.addImage(makeCatButton(cat.emoji, new Color(cat.color), btnSize))
       btn.imageSize = new Size(btnSize, btnSize)
-      btn.url = scCat(cat.id)
+      // Llama a Scriptable con acción 'new' y la categoría
+      btn.url = `scriptable:///run?scriptName=BuddyFinanzas&action=new&category=${cat.id}`
     }
   }
 
   mainRow.addSpacer()
 
-  // Botón "+" (abre nueva transacción sin categoría)
+  // Botón "+" (nueva transacción sin categoría predefinida)
   const plusCol = mainRow.addStack()
   plusCol.layoutVertically()
   plusCol.centerAlignContent()
-
   const plusBtn = plusCol.addImage(makePlusButton(btnSize))
   plusBtn.imageSize = new Size(btnSize, btnSize)
-  plusBtn.url = SC_NUEVA
+  plusBtn.url = `scriptable:///run?scriptName=BuddyFinanzas&action=new`
 
   if (isLarge) {
-    // Stats + recientes en widget grande
     widget.addSpacer(10)
     addDivider(widget)
     widget.addSpacer(8)
@@ -153,13 +207,13 @@ function makeGauge(leftToSpend, leftPct, size) {
     ctx.strokePath()
   }
 
-  // Texto monto
+  // Monto
   ctx.setTextAlignedCenter()
   ctx.setFont(Font.boldSystemFont(size * 0.145))
   ctx.setTextColor(Color.white())
   ctx.drawTextInRect(`Q ${fmtShort(leftToSpend)}`, new Rect(6, cy - size * 0.14, size - 12, size * 0.22))
 
-  // Texto etiqueta
+  // Etiqueta
   ctx.setFont(Font.systemFont(size * 0.082))
   ctx.setTextColor(new Color("#888899"))
   ctx.drawTextInRect("DISPONIBLE", new Rect(0, cy + size * 0.07, size, size * 0.14))
@@ -220,7 +274,7 @@ function makePlusButton(size) {
   return ctx.getImage()
 }
 
-// ── Helpers de layout ─────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function addStats(w, data) {
   const row = w.addStack()
   row.layoutHorizontally()
@@ -258,10 +312,4 @@ function fmtShort(n) {
   const v = n || 0
   if (v >= 10000) return (v / 1000).toFixed(1) + 'K'
   return v.toLocaleString('es-GT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-}
-
-function getMonthLabel() {
-  const months = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-  const d = new Date()
-  return `${months[d.getMonth()]} ${d.getFullYear()}`
 }
