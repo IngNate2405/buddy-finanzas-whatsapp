@@ -1,222 +1,238 @@
 // BuddyFinanzas Widget — Scriptable
-// ─────────────────────────────────
-// 1. Instala "Scriptable" desde el App Store
-// 2. Abre Scriptable → "+" → pega este script → guarda como "BuddyFinanzas"
-// 3. Agrega widget Scriptable al inicio → Edit Widget → selecciona el script
+// Guarda como "BuddyFinanzas" en Scriptable
 
 const UID     = "DxuAuPFtBIR0hjTIG2v7UcWPGcQ2"
 const API_URL = "https://buddywspserver.netlify.app/widget-summary"
-const ADD_URL = "https://buddywspserver.netlify.app/add-transaction"
 const APP_URL = "https://finanzas-nate.vercel.app"
 
-// Categorías de acceso rápido
-const QUICK_CATS = [
-  { emoji: "🍽️", label: "Comida",        color: "#FF6B9D", id: "food"          },
-  { emoji: "⛽",  label: "Gasolina",      color: "#F59E0B", id: "gas"           },
-  { emoji: "🛍️", label: "Estilo de vida",color: "#8B5CF6", id: "lifestyle"     },
-  { emoji: "🎬",  label: "Ocio",          color: "#3B82F6", id: "entertainment" },
-]
-
-// ── ¿Se ejecuta desde un botón del widget? ───────────────────────────────────
-const q = args.queryParameters || {}
-
-if (q.action === 'new') {
-  // Mostrar diálogo nativo para registrar transacción rápida
-  const cat = QUICK_CATS.find(c => c.id === q.category)
-  const label = cat ? `${cat.emoji} ${cat.label}` : '➕ Nueva transacción'
-
-  const alert = new Alert()
-  alert.title = label
-  alert.message = 'Ingresa el monto (Q)'
-  alert.addTextField('0.00', '')
-  alert.addAction('Guardar')
-  alert.addCancelAction('Cancelar')
-
-  const choice = await alert.presentAlert()
-
-  if (choice === 0) {
-    const amount = parseFloat(alert.textFieldValue(0).replace(',', '.'))
-    if (amount > 0) {
-      const now = new Date()
-      const date = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
-
-      const req = new Request(ADD_URL)
-      req.method = 'POST'
-      req.headers = { 'Content-Type': 'application/json' }
-      req.body = JSON.stringify({
-        uid: UID,
-        type: 'expense',
-        amount,
-        categoryId: q.category || 'misc',
-        date,
-      })
-
-      try {
-        await req.loadJSON()
-        const ok = new Alert()
-        ok.title = '✅ Guardado'
-        ok.message = `Q ${amount.toFixed(2)} en ${cat ? cat.label : 'misc'}`
-        ok.addAction('OK')
-        await ok.presentAlert()
-      } catch (e) {
-        const err = new Alert()
-        err.title = '❌ Error'
-        err.message = 'No se pudo guardar. Revisa tu conexión.'
-        err.addAction('OK')
-        await err.presentAlert()
-      }
-    }
-  }
-
-  Script.complete()
-  return
-}
-
-if (q.action === 'open') {
-  Safari.open(APP_URL)
-  Script.complete()
-  return
-}
-
-// ── Fetch datos para el widget ────────────────────────────────────────────────
+// ── Fetch ─────────────────────────────────────────────────────────────────────
 let data = null
 try {
   const req = new Request(`${API_URL}?uid=${UID}`)
-  req.timeoutInterval = 8
+  req.timeoutInterval = 10
   data = await req.loadJSON()
 } catch (e) { data = null }
 
 // ── Colores ───────────────────────────────────────────────────────────────────
-const C = {
-  bg1:    new Color("#131320"),
-  bg2:    new Color("#1E1040"),
-  white:  Color.white(),
-  gray:   new Color("#888899"),
-  pink:   new Color("#FF6B9D"),
-  green:  new Color("#4ADE80"),
-  purple: new Color("#C084FC"),
-}
+const BG1      = new Color("#0D0D1A")
+const BG2      = new Color("#141428")
+const PURPLE   = new Color("#A78BFA")
+const PURPLE_DIM = new Color("#A78BFA", 0.15)
+const GREEN    = new Color("#34D399")
+const BLUE     = new Color("#60A5FA")
+const WHITE    = Color.white()
+const GRAY     = new Color("#6B7280")
+const SURFACE  = new Color("#FFFFFF", 0.07)
 
 // ── Widget ────────────────────────────────────────────────────────────────────
-const widget = new ListWidget()
+const w = new ListWidget()
 const grad = new LinearGradient()
-grad.colors    = [C.bg1, C.bg2]
+grad.colors    = [BG1, BG2]
 grad.locations = [0, 1]
-widget.backgroundGradient = grad
-widget.setPadding(14, 14, 14, 14)
-// Tap en el gauge/fondo → abre la app
-widget.url = `scriptable:///run?scriptName=BuddyFinanzas&action=open`
+w.backgroundGradient = grad
+w.setPadding(16, 16, 16, 16)
+w.url = APP_URL
 
 if (!data || data.error) {
-  const t = widget.addText("No se pudo cargar")
-  t.textColor = C.gray
-  t.font = Font.systemFont(13)
+  const t = w.addText("Sin conexión")
+  t.textColor = GRAY
+  t.font = Font.mediumSystemFont(13)
+  t.centerAlignText()
 } else {
-  const leftToSpend = Math.max(0, (data.monthIncome || 0) - (data.monthExpenses || 0))
-  const leftPct     = data.monthIncome > 0
-    ? Math.max(0, Math.min(1, leftToSpend / data.monthIncome))
-    : 0
+  const total     = data.totalBalance   || 0
+  const cash      = data.cashBalance    || 0
+  const card      = data.cardBalance    || 0
+  const expenses  = data.monthExpenses  || 0
+  const income    = data.monthIncome    || 0
+  const available = Math.max(0, income - expenses)
+  const pct       = income > 0 ? Math.min(1, available / income) : (total > 0 ? 1 : 0)
 
-  const isLarge = config.widgetFamily === 'large'
-
-  // ── Fila principal: gauge + botones ──────────────────────────────────────
-  const mainRow = widget.addStack()
-  mainRow.layoutHorizontally()
-  mainRow.centerAlignContent()
-
-  // Gauge izquierda
-  const gSize = isLarge ? 150 : 118
-  const gImg = mainRow.addImage(makeGauge(leftToSpend, leftPct, gSize))
-  gImg.imageSize = new Size(gSize, gSize)
-
-  mainRow.addSpacer(10)
-
-  // Botones 2x2 de categorías
-  const btnSize = isLarge ? 54 : 46
-  const right = mainRow.addStack()
-  right.layoutVertically()
-  right.spacing = 8
-
-  for (let i = 0; i < 2; i++) {
-    const row = right.addStack()
-    row.layoutHorizontally()
-    row.spacing = 8
-
-    for (let j = 0; j < 2; j++) {
-      const cat = QUICK_CATS[i * 2 + j]
-      const btn = row.addImage(makeCatButton(cat.emoji, new Color(cat.color), btnSize))
-      btn.imageSize = new Size(btnSize, btnSize)
-      // Llama a Scriptable con acción 'new' y la categoría
-      btn.url = `scriptable:///run?scriptName=BuddyFinanzas&action=new&category=${cat.id}`
-    }
-  }
-
-  mainRow.addSpacer()
-
-  // Botón "+" (nueva transacción sin categoría predefinida)
-  const plusCol = mainRow.addStack()
-  plusCol.layoutVertically()
-  plusCol.centerAlignContent()
-  const plusBtn = plusCol.addImage(makePlusButton(btnSize))
-  plusBtn.imageSize = new Size(btnSize, btnSize)
-  plusBtn.url = `scriptable:///run?scriptName=BuddyFinanzas&action=new`
-
-  if (isLarge) {
-    widget.addSpacer(10)
-    addDivider(widget)
-    widget.addSpacer(8)
-    addStats(widget, data)
-
-    if (data.recentTx?.length) {
-      widget.addSpacer(8)
-      addDivider(widget)
-      widget.addSpacer(6)
-      addRecentTx(widget, data.recentTx, 4)
-    }
+  if (config.widgetFamily === 'small') {
+    buildSmall(w, total, pct, cash, card)
+  } else {
+    buildMedium(w, available, pct, cash, card, expenses)
   }
 }
 
-Script.setWidget(widget)
-if (config.runsInApp) widget.presentMedium()
+Script.setWidget(w)
+if (config.runsInApp) {
+  if (config.widgetFamily === 'small') w.presentSmall()
+  else w.presentMedium()
+}
+
+// ── Widget mediano ─────────────────────────────────────────────────────────────
+function buildMedium(w, available, pct, cash, card, expenses) {
+  const row = w.addStack()
+  row.layoutHorizontally()
+  row.centerAlignContent()
+
+  // Gauge izquierda
+  const gSize = 130
+  const gaugeImg = row.addImage(makeGauge(available, pct, gSize))
+  gaugeImg.imageSize = new Size(gSize, gSize)
+
+  row.addSpacer(14)
+
+  // Panel derecho
+  const right = row.addStack()
+  right.layoutVertically()
+  right.spacing = 0
+
+  // Título mes
+  const now = new Date()
+  const monthName = now.toLocaleDateString('es-GT', { month: 'long' }).toUpperCase()
+  const monthLbl = right.addText(monthName)
+  monthLbl.textColor = GRAY
+  monthLbl.font = Font.boldSystemFont(8)
+
+  right.addSpacer(10)
+
+  // Tarjeta
+  addStatBlock(right, "💳", "Tarjeta", card)
+
+  right.addSpacer(8)
+
+  // Efectivo
+  addStatBlock(right, "💵", "Efectivo", cash)
+
+  right.addSpacer(10)
+
+  // Divider
+  const div = right.addStack()
+  div.size = new Size(-1, 1)
+  div.backgroundColor = new Color("#FFFFFF", 0.1)
+
+  right.addSpacer(8)
+
+  // Gastos del mes
+  const expRow = right.addStack()
+  expRow.layoutHorizontally()
+  expRow.centerAlignContent()
+  const expLbl = expRow.addText("Gastos mes  ")
+  expLbl.textColor = GRAY
+  expLbl.font = Font.systemFont(9)
+  const expAmt = expRow.addText(`-Q ${fmt(expenses)}`)
+  expAmt.textColor = new Color("#F87171")
+  expAmt.font = Font.boldSystemFont(9)
+}
+
+// ── Widget pequeño ─────────────────────────────────────────────────────────────
+function buildSmall(w, total, pct, cash, card) {
+  w.addSpacer()
+  const img = w.addImage(makeGauge(total, pct, 110))
+  img.centerAlignImage()
+  img.imageSize = new Size(110, 110)
+  w.addSpacer(8)
+
+  const row = w.addStack()
+  row.layoutHorizontally()
+  row.centerAlignContent()
+
+  const cashLbl = row.addText(`💵 Q${fmtShort(cash)}`)
+  cashLbl.textColor = GREEN
+  cashLbl.font = Font.boldSystemFont(9)
+  row.addSpacer()
+  const cardLbl = row.addText(`💳 Q${fmtShort(card)}`)
+  cardLbl.textColor = BLUE
+  cardLbl.font = Font.boldSystemFont(9)
+
+  w.addSpacer()
+}
+
+// ── Bloque de stat (tarjeta / efectivo) ───────────────────────────────────────
+function addStatBlock(parent, icon, label, amount) {
+  const stack = parent.addStack()
+  stack.layoutVertically()
+  stack.spacing = 2
+  stack.setPadding(8, 10, 8, 10)
+  stack.cornerRadius = 10
+  stack.backgroundColor = SURFACE
+
+  const topRow = stack.addStack()
+  topRow.layoutHorizontally()
+  topRow.centerAlignContent()
+
+  const ico = topRow.addText(icon)
+  ico.font = Font.systemFont(10)
+  topRow.addSpacer(4)
+
+  const lbl = topRow.addText(label)
+  lbl.textColor = GRAY
+  lbl.font = Font.boldSystemFont(9)
+
+  const amtColor = label === 'Tarjeta' ? BLUE : GREEN
+  const amt = stack.addText(`Q ${fmt(amount)}`)
+  amt.textColor = amtColor
+  amt.font = Font.boldSystemFont(14)
+}
 
 // ── Gauge ─────────────────────────────────────────────────────────────────────
-function makeGauge(leftToSpend, leftPct, size) {
+function makeGauge(amount, pct, size) {
   const ctx = new DrawContext()
   ctx.size = new Size(size, size)
   ctx.opaque = false
   ctx.respectScreenScale = true
 
-  const cx = size / 2, cy = size / 2
-  const r  = (size - 18) / 2
-  const lw = size * 0.088
+  const cx = size / 2
+  const cy = size / 2
+  const r  = (size - 20) / 2
+  const lw = size * 0.10
 
-  const startAngle = Math.PI * 0.75
-  const sweep      = Math.PI * 1.5
+  const startA = Math.PI * 0.75        // 135° (abajo-izquierda)
+  const sweep  = Math.PI * 1.5         // 270°
 
   // Track
-  ctx.addPath(arcPath(cx, cy, r, startAngle, startAngle + sweep, 60))
-  ctx.setStrokeColor(new Color("#C084FC25"))
+  ctx.addPath(arcPath(cx, cy, r, startA, startA + sweep, 80))
+  ctx.setStrokeColor(PURPLE_DIM)
   ctx.setLineWidth(lw)
   ctx.strokePath()
 
   // Progreso
-  if (leftPct > 0.01) {
-    ctx.addPath(arcPath(cx, cy, r, startAngle, startAngle + leftPct * sweep, 60))
-    ctx.setStrokeColor(new Color("#C084FC"))
+  if (pct > 0.005) {
+    const filledSweep = pct * sweep
+    ctx.addPath(arcPath(cx, cy, r, startA, startA + filledSweep, 80))
+    ctx.setStrokeColor(PURPLE)
     ctx.setLineWidth(lw)
     ctx.strokePath()
+
+    // Punto de progreso al final del arco
+    const endA = startA + filledSweep
+    const dotX = cx + r * Math.cos(endA)
+    const dotY = cy + r * Math.sin(endA)
+    const dotPath = new Path()
+    const dotR = lw * 0.6
+    dotPath.addEllipse(new Rect(dotX - dotR, dotY - dotR, dotR * 2, dotR * 2))
+    ctx.addPath(dotPath)
+    ctx.setFillColor(WHITE)
+    ctx.fillPath()
   }
 
-  // Monto
+  // Monto disponible
   ctx.setTextAlignedCenter()
-  ctx.setFont(Font.boldSystemFont(size * 0.145))
-  ctx.setTextColor(Color.white())
-  ctx.drawTextInRect(`Q ${fmtShort(leftToSpend)}`, new Rect(6, cy - size * 0.14, size - 12, size * 0.22))
+  ctx.setFont(Font.boldSystemFont(size * 0.155))
+  ctx.setTextColor(WHITE)
+  ctx.drawTextInRect(
+    `Q ${fmtShort(amount)}`,
+    new Rect(8, cy - size * 0.13, size - 16, size * 0.22)
+  )
 
   // Etiqueta
-  ctx.setFont(Font.systemFont(size * 0.082))
-  ctx.setTextColor(new Color("#888899"))
-  ctx.drawTextInRect("DISPONIBLE", new Rect(0, cy + size * 0.07, size, size * 0.14))
+  ctx.setFont(Font.boldSystemFont(size * 0.082))
+  ctx.setTextColor(GRAY)
+  ctx.drawTextInRect(
+    "DISPONIBLE",
+    new Rect(0, cy + size * 0.08, size, size * 0.15)
+  )
+
+  // Porcentaje abajo-centro
+  if (pct >= 0) {
+    ctx.setFont(Font.boldSystemFont(size * 0.09))
+    ctx.setTextColor(PURPLE)
+    ctx.drawTextInRect(
+      `${Math.round(pct * 100)}%`,
+      new Rect(0, cy + size * 0.24, size, size * 0.16)
+    )
+  }
 
   return ctx.getImage()
 }
@@ -224,84 +240,13 @@ function makeGauge(leftToSpend, leftPct, size) {
 function arcPath(cx, cy, r, start, end, steps) {
   const path = new Path()
   for (let i = 0; i <= steps; i++) {
-    const angle = start + (end - start) * i / steps
-    const x = cx + r * Math.cos(angle)
-    const y = cy + r * Math.sin(angle)
+    const a = start + (end - start) * (i / steps)
+    const x = cx + r * Math.cos(a)
+    const y = cy + r * Math.sin(a)
     if (i === 0) path.move(new Point(x, y))
     else path.addLine(new Point(x, y))
   }
   return path
-}
-
-// ── Botón de categoría ────────────────────────────────────────────────────────
-function makeCatButton(emoji, bgColor, size) {
-  const ctx = new DrawContext()
-  ctx.size = new Size(size, size)
-  ctx.opaque = false
-  ctx.respectScreenScale = true
-
-  const path = new Path()
-  path.addEllipse(new Rect(0, 0, size, size))
-  ctx.addPath(path)
-  ctx.setFillColor(bgColor)
-  ctx.fillPath()
-
-  ctx.setFont(Font.systemFont(size * 0.42))
-  ctx.setTextAlignedCenter()
-  ctx.drawTextInRect(emoji, new Rect(0, size * 0.22, size, size * 0.56))
-
-  return ctx.getImage()
-}
-
-// ── Botón "+" ─────────────────────────────────────────────────────────────────
-function makePlusButton(size) {
-  const ctx = new DrawContext()
-  ctx.size = new Size(size, size)
-  ctx.opaque = false
-  ctx.respectScreenScale = true
-
-  const path = new Path()
-  path.addEllipse(new Rect(0, 0, size, size))
-  ctx.addPath(path)
-  ctx.setFillColor(new Color("#FFFFFF18"))
-  ctx.fillPath()
-
-  ctx.setFont(Font.boldSystemFont(size * 0.5))
-  ctx.setTextColor(Color.white())
-  ctx.setTextAlignedCenter()
-  ctx.drawTextInRect("+", new Rect(0, size * 0.1, size, size * 0.7))
-
-  return ctx.getImage()
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function addStats(w, data) {
-  const row = w.addStack()
-  row.layoutHorizontally()
-  const inc = row.addStack(); inc.layoutVertically(); inc.spacing = 2
-  const il = inc.addText("↑ Ingresos"); il.textColor = C.gray; il.font = Font.systemFont(9)
-  const ia = inc.addText(`Q ${fmt(data.monthIncome)}`); ia.textColor = C.green; ia.font = Font.boldSystemFont(13)
-  row.addSpacer()
-  const exp = row.addStack(); exp.layoutVertically(); exp.spacing = 2
-  const el = exp.addText("↓ Gastos"); el.textColor = C.gray; el.font = Font.systemFont(9)
-  const ea = exp.addText(`Q ${fmt(data.monthExpenses)}`); ea.textColor = C.pink; ea.font = Font.boldSystemFont(13)
-}
-
-function addDivider(w) {
-  const d = w.addStack()
-  d.size = new Size(-1, 1)
-  d.backgroundColor = new Color("#FFFFFF18")
-}
-
-function addRecentTx(w, txList, max) {
-  for (const tx of txList.slice(0, max)) {
-    const row = w.addStack(); row.layoutHorizontally(); row.spacing = 5; row.centerAlignContent()
-    const dot = row.addText("●"); dot.textColor = tx.type === 'income' ? C.green : C.pink; dot.font = Font.systemFont(7)
-    const desc = row.addText(tx.note || tx.categoryId); desc.textColor = C.white; desc.font = Font.systemFont(11); desc.lineLimit = 1
-    row.addSpacer()
-    const amt = row.addText(`${tx.type === 'income' ? '+' : '-'}Q${fmtShort(tx.amount)}`); amt.textColor = tx.type === 'income' ? C.green : C.pink; amt.font = Font.boldSystemFont(11)
-    w.addSpacer(3)
-  }
 }
 
 function fmt(n) {

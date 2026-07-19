@@ -26,23 +26,26 @@ exports.handler = async (event) => {
         .get(),
     ])
 
-    const totalBalance = walletsSnap.docs.reduce((sum, d) => sum + (d.data().balance || 0), 0)
+    const wallets = walletsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+    const cashBalance = wallets.filter(w => w.cash === true) .reduce((s, w) => s + (w.balance || 0), 0)
+    const cardBalance = wallets.filter(w => w.cash !== true) .reduce((s, w) => s + (w.balance || 0), 0)
+    const totalBalance = cashBalance + cardBalance
 
     const txs = txSnap.docs.map(d => ({ id: d.id, ...d.data() }))
     const monthExpenses = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
-    const monthIncome   = txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-    const recentTx = txs.slice(0, 3).map(t => ({
-      type: t.type,
-      amount: t.amount,
-      categoryId: t.categoryId,
-      note: t.note || '',
-      date: t.date,
-    }))
+    const monthIncome   = txs.filter(t => t.type === 'income') .reduce((s, t) => s + t.amount, 0)
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ totalBalance, monthExpenses, monthIncome, recentTx, month: `${y}-${m}` }),
+      body: JSON.stringify({
+        totalBalance,
+        cashBalance,
+        cardBalance,
+        monthExpenses,
+        monthIncome,
+        month: `${y}-${m}`,
+      }),
     }
   } catch (err) {
     console.error('widget-summary error:', err)
