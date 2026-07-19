@@ -140,18 +140,14 @@ function makeGauge(leftToSpend, leftPct, size) {
   const sweep      = Math.PI * 1.5
 
   // Track
-  const bgPath = new Path()
-  bgPath.addArc(new Point(cx, cy), r, startAngle, startAngle + sweep, false)
-  ctx.addPath(bgPath)
+  ctx.addPath(arcPath(cx, cy, r, startAngle, startAngle + sweep, 60))
   ctx.setStrokeColor(new Color("#C084FC25"))
   ctx.setLineWidth(lw)
   ctx.strokePath()
 
   // Progreso
   if (leftPct > 0.01) {
-    const pPath = new Path()
-    pPath.addArc(new Point(cx, cy), r, startAngle, startAngle + leftPct * sweep, false)
-    ctx.addPath(pPath)
+    ctx.addPath(arcPath(cx, cy, r, startAngle, startAngle + leftPct * sweep, 60))
     ctx.setStrokeColor(new Color("#C084FC"))
     ctx.setLineWidth(lw)
     ctx.strokePath()
@@ -169,6 +165,18 @@ function makeGauge(leftToSpend, leftPct, size) {
   ctx.drawTextInRect("DISPONIBLE", new Rect(0, cy + size * 0.07, size, size * 0.14))
 
   return ctx.getImage()
+}
+
+function arcPath(cx, cy, r, start, end, steps) {
+  const path = new Path()
+  for (let i = 0; i <= steps; i++) {
+    const angle = start + (end - start) * i / steps
+    const x = cx + r * Math.cos(angle)
+    const y = cy + r * Math.sin(angle)
+    if (i === 0) path.move(new Point(x, y))
+    else path.addLine(new Point(x, y))
+  }
+  return path
 }
 
 // ── Botón de categoría ────────────────────────────────────────────────────────
