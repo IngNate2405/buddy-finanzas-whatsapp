@@ -8,10 +8,11 @@ const UID           = "DxuAuPFtBIR0hjTIG2v7UcWPGcQ2"
 const API_URL       = "https://buddywspserver.netlify.app/widget-summary"
 const APP_URL       = "https://finanzas-nate.vercel.app"
 const NEW_TX        = `${APP_URL}/transacciones/nueva`
-const SHORTCUT_NAME = "BuddyFinanzas"  // nombre exacto del Shortcut en tu iPhone
+const SC_HOME = "shortcuts://run-shortcut?name=BuddyFinanzas"
+const SC_NUEVA = "shortcuts://run-shortcut?name=BuddyNueva"
 
-function scUrl(input) {
-  return `shortcuts://run-shortcut?name=${encodeURIComponent(SHORTCUT_NAME)}&input=${encodeURIComponent(input)}`
+function scCat(categoryId) {
+  return `${SC_NUEVA}&input=${encodeURIComponent(categoryId)}`
 }
 
 // Categorías de acceso rápido (emoji, color, categoryId de la app)
@@ -48,7 +49,7 @@ grad.colors    = [C.bg1, C.bg2]
 grad.locations = [0, 1]
 widget.backgroundGradient = grad
 widget.setPadding(14, 14, 14, 14)
-widget.url = scUrl("home")
+widget.url = SC_HOME
 
 if (!data || data.error) {
   const t = widget.addText("No se pudo cargar")
@@ -90,7 +91,7 @@ if (!data || data.error) {
       const cat = QUICK_CATS[idx]
       const btn = row.addImage(makeCatButton(cat.emoji, new Color(cat.color), btnSize))
       btn.imageSize = new Size(btnSize, btnSize)
-      btn.url = scUrl(cat.id)
+      btn.url = scCat(cat.id)
     }
   }
 
@@ -103,7 +104,7 @@ if (!data || data.error) {
 
   const plusBtn = plusCol.addImage(makePlusButton(btnSize))
   plusBtn.imageSize = new Size(btnSize, btnSize)
-  plusBtn.url = scUrl("nueva")
+  plusBtn.url = SC_NUEVA
 
   if (isLarge) {
     // Stats + recientes en widget grande
