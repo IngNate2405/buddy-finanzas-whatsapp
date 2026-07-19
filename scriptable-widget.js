@@ -5,13 +5,30 @@ const UID     = "DxuAuPFtBIR0hjTIG2v7UcWPGcQ2"
 const API_URL = "https://buddywspserver.netlify.app/widget-summary"
 const APP_URL = "https://finanzas-nate.vercel.app"
 
+// ── Cache ─────────────────────────────────────────────────────────────────────
+const fm        = FileManager.local()
+const cachePath = fm.joinPath(fm.documentsDirectory(), "buddy_widget_cache.json")
+
+let cached = null
+try {
+  if (fm.fileExists(cachePath)) cached = JSON.parse(fm.readString(cachePath))
+} catch (e) {}
+
 // ── Fetch ─────────────────────────────────────────────────────────────────────
 let data = null
 try {
   const req = new Request(`${API_URL}?uid=${UID}`)
   req.timeoutInterval = 10
   data = await req.loadJSON()
-} catch (e) { data = null }
+} catch (e) {
+  data = cached // usa caché si no hay red
+}
+
+// Guarda si cambió algo; ajusta intervalo de refresco en consecuencia
+const changed = JSON.stringify(data) !== JSON.stringify(cached)
+if (changed && data) {
+  try { fm.writeString(cachePath, JSON.stringify(data)) } catch (e) {}
+}
 
 // ── Colores ───────────────────────────────────────────────────────────────────
 const BG1     = new Color("#0D0D1A")
@@ -30,7 +47,8 @@ grad.locations = [0, 1]
 w.backgroundGradient = grad
 w.setPadding(16, 16, 16, 16)
 w.url = APP_URL
-w.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000) // refresca cada ~5 min
+// Si hubo cambios: vuelve a verificar en 5 min; si no: en 30 min
+w.refreshAfterDate = new Date(Date.now() + (changed ? 5 : 30) * 60 * 1000)
 
 if (!data || data.error) {
   const t = w.addText("Sin conexión")
