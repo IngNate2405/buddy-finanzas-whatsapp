@@ -156,7 +156,7 @@ function buildSmall(w, available, pct, wallets) {
       if (i > 0) row.addSpacer()
       const wl = wallets[i]
       const lbl = row.addText(`Q${fmtShort(wl.balance)}`)
-      lbl.textColor = new Color(wl.color)
+      lbl.textColor = wl.balance < 0 ? new Color("#F87171") : new Color("#34D399")
       lbl.font = Font.boldSystemFont(9)
     }
   }
@@ -178,8 +178,9 @@ function addWalletBlock(parent, wallet) {
   nameLbl.font = Font.boldSystemFont(8)
   nameLbl.lineLimit = 1
 
+  const amtColor = wallet.balance < 0 ? new Color("#F87171") : new Color("#34D399")
   const amtLbl = stack.addText(`Q ${fmt(wallet.balance)}`)
-  amtLbl.textColor = new Color(wallet.color)
+  amtLbl.textColor = amtColor
   amtLbl.font = Font.boldSystemFont(14)
 }
 
