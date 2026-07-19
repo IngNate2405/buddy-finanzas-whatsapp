@@ -27,9 +27,13 @@ exports.handler = async (event) => {
     ])
 
     const wallets = walletsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
-    const cashBalance = wallets.filter(w => w.cash === true) .reduce((s, w) => s + (w.balance || 0), 0)
-    const cardBalance = wallets.filter(w => w.cash !== true) .reduce((s, w) => s + (w.balance || 0), 0)
-    const totalBalance = cashBalance + cardBalance
+
+    // Wallets marcadas para el widget (con nombre y saldo)
+    const widgetWallets = wallets
+      .filter(w => w.showInWidget === true && !w.archived)
+      .map(w => ({ name: w.name, balance: w.balance || 0, color: w.color || '#888' }))
+
+    const totalBalance = wallets.reduce((s, w) => s + (w.balance || 0), 0)
 
     const txs = txSnap.docs.map(d => ({ id: d.id, ...d.data() }))
     const monthExpenses = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
@@ -40,8 +44,7 @@ exports.handler = async (event) => {
       headers,
       body: JSON.stringify({
         totalBalance,
-        cashBalance,
-        cardBalance,
+        widgetWallets,
         monthExpenses,
         monthIncome,
         month: `${y}-${m}`,

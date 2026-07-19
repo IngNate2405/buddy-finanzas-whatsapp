@@ -14,15 +14,13 @@ try {
 } catch (e) { data = null }
 
 // ── Colores ───────────────────────────────────────────────────────────────────
-const BG1      = new Color("#0D0D1A")
-const BG2      = new Color("#141428")
-const PURPLE   = new Color("#A78BFA")
+const BG1     = new Color("#0D0D1A")
+const BG2     = new Color("#141428")
+const PURPLE  = new Color("#A78BFA")
 const PURPLE_DIM = new Color("#A78BFA", 0.15)
-const GREEN    = new Color("#34D399")
-const BLUE     = new Color("#60A5FA")
-const WHITE    = Color.white()
-const GRAY     = new Color("#6B7280")
-const SURFACE  = new Color("#FFFFFF", 0.07)
+const WHITE   = Color.white()
+const GRAY    = new Color("#6B7280")
+const SURFACE = new Color("#FFFFFF", 0.07)
 
 // ── Widget ────────────────────────────────────────────────────────────────────
 const w = new ListWidget()
@@ -39,18 +37,16 @@ if (!data || data.error) {
   t.font = Font.mediumSystemFont(13)
   t.centerAlignText()
 } else {
-  const total     = data.totalBalance   || 0
-  const cash      = data.cashBalance    || 0
-  const card      = data.cardBalance    || 0
   const expenses  = data.monthExpenses  || 0
   const income    = data.monthIncome    || 0
   const available = Math.max(0, income - expenses)
-  const pct       = income > 0 ? Math.min(1, available / income) : (total > 0 ? 1 : 0)
+  const pct       = income > 0 ? Math.min(1, available / income) : 0
+  const wallets   = data.widgetWallets  || []
 
   if (config.widgetFamily === 'small') {
-    buildSmall(w, total, pct, cash, card)
+    buildSmall(w, available, pct, wallets)
   } else {
-    buildMedium(w, available, pct, cash, card, expenses)
+    buildMedium(w, available, pct, wallets, expenses)
   }
 }
 
@@ -61,7 +57,7 @@ if (config.runsInApp) {
 }
 
 // ── Widget mediano ─────────────────────────────────────────────────────────────
-function buildMedium(w, available, pct, cash, card, expenses) {
+function buildMedium(w, available, pct, wallets, expenses) {
   const row = w.addStack()
   row.layoutHorizontally()
   row.centerAlignContent()
@@ -78,7 +74,7 @@ function buildMedium(w, available, pct, cash, card, expenses) {
   right.layoutVertically()
   right.spacing = 0
 
-  // Título mes
+  // Mes actual
   const now = new Date()
   const monthName = now.toLocaleDateString('es-GT', { month: 'long' }).toUpperCase()
   const monthLbl = right.addText(monthName)
@@ -87,13 +83,20 @@ function buildMedium(w, available, pct, cash, card, expenses) {
 
   right.addSpacer(10)
 
-  // Tarjeta
-  addStatBlock(right, "💳", "Tarjeta", card)
-
-  right.addSpacer(8)
-
-  // Efectivo
-  addStatBlock(right, "💵", "Efectivo", cash)
+  if (wallets.length === 0) {
+    // Sin wallets configuradas
+    const hint = right.addText("Activa 'Show in widget'\nen tu billetera")
+    hint.textColor = GRAY
+    hint.font = Font.systemFont(10)
+    hint.lineLimit = 3
+  } else {
+    // Una tarjeta por wallet marcada
+    const maxShow = Math.min(wallets.length, 3)
+    for (let i = 0; i < maxShow; i++) {
+      if (i > 0) right.addSpacer(8)
+      addWalletBlock(right, wallets[i])
+    }
+  }
 
   right.addSpacer(10)
 
@@ -117,30 +120,33 @@ function buildMedium(w, available, pct, cash, card, expenses) {
 }
 
 // ── Widget pequeño ─────────────────────────────────────────────────────────────
-function buildSmall(w, total, pct, cash, card) {
+function buildSmall(w, available, pct, wallets) {
   w.addSpacer()
-  const img = w.addImage(makeGauge(total, pct, 110))
+  const img = w.addImage(makeGauge(available, pct, 110))
   img.centerAlignImage()
   img.imageSize = new Size(110, 110)
   w.addSpacer(8)
 
-  const row = w.addStack()
-  row.layoutHorizontally()
-  row.centerAlignContent()
+  if (wallets.length > 0) {
+    const row = w.addStack()
+    row.layoutHorizontally()
+    row.centerAlignContent()
 
-  const cashLbl = row.addText(`💵 Q${fmtShort(cash)}`)
-  cashLbl.textColor = GREEN
-  cashLbl.font = Font.boldSystemFont(9)
-  row.addSpacer()
-  const cardLbl = row.addText(`💳 Q${fmtShort(card)}`)
-  cardLbl.textColor = BLUE
-  cardLbl.font = Font.boldSystemFont(9)
+    const max = Math.min(wallets.length, 2)
+    for (let i = 0; i < max; i++) {
+      if (i > 0) row.addSpacer()
+      const wl = wallets[i]
+      const lbl = row.addText(`Q${fmtShort(wl.balance)}`)
+      lbl.textColor = new Color(wl.color)
+      lbl.font = Font.boldSystemFont(9)
+    }
+  }
 
   w.addSpacer()
 }
 
-// ── Bloque de stat (tarjeta / efectivo) ───────────────────────────────────────
-function addStatBlock(parent, icon, label, amount) {
+// ── Bloque de billetera ────────────────────────────────────────────────────────
+function addWalletBlock(parent, wallet) {
   const stack = parent.addStack()
   stack.layoutVertically()
   stack.spacing = 2
@@ -148,22 +154,14 @@ function addStatBlock(parent, icon, label, amount) {
   stack.cornerRadius = 10
   stack.backgroundColor = SURFACE
 
-  const topRow = stack.addStack()
-  topRow.layoutHorizontally()
-  topRow.centerAlignContent()
+  const nameLbl = stack.addText(wallet.name.toUpperCase())
+  nameLbl.textColor = GRAY
+  nameLbl.font = Font.boldSystemFont(8)
+  nameLbl.lineLimit = 1
 
-  const ico = topRow.addText(icon)
-  ico.font = Font.systemFont(10)
-  topRow.addSpacer(4)
-
-  const lbl = topRow.addText(label)
-  lbl.textColor = GRAY
-  lbl.font = Font.boldSystemFont(9)
-
-  const amtColor = label === 'Tarjeta' ? BLUE : GREEN
-  const amt = stack.addText(`Q ${fmt(amount)}`)
-  amt.textColor = amtColor
-  amt.font = Font.boldSystemFont(14)
+  const amtLbl = stack.addText(`Q ${fmt(wallet.balance)}`)
+  amtLbl.textColor = new Color(wallet.color)
+  amtLbl.font = Font.boldSystemFont(14)
 }
 
 // ── Gauge ─────────────────────────────────────────────────────────────────────
@@ -178,8 +176,8 @@ function makeGauge(amount, pct, size) {
   const r  = (size - 20) / 2
   const lw = size * 0.10
 
-  const startA = Math.PI * 0.75        // 135° (abajo-izquierda)
-  const sweep  = Math.PI * 1.5         // 270°
+  const startA = Math.PI * 0.75
+  const sweep  = Math.PI * 1.5
 
   // Track
   ctx.addPath(arcPath(cx, cy, r, startA, startA + sweep, 80))
@@ -189,14 +187,13 @@ function makeGauge(amount, pct, size) {
 
   // Progreso
   if (pct > 0.005) {
-    const filledSweep = pct * sweep
-    ctx.addPath(arcPath(cx, cy, r, startA, startA + filledSweep, 80))
+    ctx.addPath(arcPath(cx, cy, r, startA, startA + pct * sweep, 80))
     ctx.setStrokeColor(PURPLE)
     ctx.setLineWidth(lw)
     ctx.strokePath()
 
-    // Punto de progreso al final del arco
-    const endA = startA + filledSweep
+    // Punto al final del arco
+    const endA = startA + pct * sweep
     const dotX = cx + r * Math.cos(endA)
     const dotY = cy + r * Math.sin(endA)
     const dotPath = new Path()
@@ -224,15 +221,13 @@ function makeGauge(amount, pct, size) {
     new Rect(0, cy + size * 0.08, size, size * 0.15)
   )
 
-  // Porcentaje abajo-centro
-  if (pct >= 0) {
-    ctx.setFont(Font.boldSystemFont(size * 0.09))
-    ctx.setTextColor(PURPLE)
-    ctx.drawTextInRect(
-      `${Math.round(pct * 100)}%`,
-      new Rect(0, cy + size * 0.24, size, size * 0.16)
-    )
-  }
+  // Porcentaje
+  ctx.setFont(Font.boldSystemFont(size * 0.09))
+  ctx.setTextColor(PURPLE)
+  ctx.drawTextInRect(
+    `${Math.round(pct * 100)}%`,
+    new Rect(0, cy + size * 0.24, size, size * 0.16)
+  )
 
   return ctx.getImage()
 }
