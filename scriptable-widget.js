@@ -30,6 +30,24 @@ if (changed && data) {
   try { fm.writeString(cachePath, JSON.stringify(data)) } catch (e) {}
 }
 
+// ── Traducciones ──────────────────────────────────────────────────────────────
+const STRINGS = {
+  es: {
+    noConnection:  "Sin conexión",
+    available:     "DISPONIBLE",
+    monthExpenses: "Gastos mes",
+    noWidget:      "Activa 'Show in widget'\nen tu billetera",
+    locale:        "es-GT",
+  },
+  en: {
+    noConnection:  "No connection",
+    available:     "AVAILABLE",
+    monthExpenses: "Month expenses",
+    noWidget:      "Enable 'Show in widget'\nin your wallet",
+    locale:        "en-US",
+  },
+}
+
 // ── Colores ───────────────────────────────────────────────────────────────────
 const BG1     = new Color("#0D0D1A")
 const BG2     = new Color("#141428")
@@ -50,8 +68,11 @@ w.url = APP_URL
 // Si hubo cambios: vuelve a verificar en 5 min; si no: en 30 min
 w.refreshAfterDate = new Date(Date.now() + (changed ? 5 : 30) * 60 * 1000)
 
+const lang = STRINGS[data?.language] ? data.language : 'es'
+const S    = STRINGS[lang]
+
 if (!data || data.error) {
-  const t = w.addText("Sin conexión")
+  const t = w.addText(S.noConnection)
   t.textColor = GRAY
   t.font = Font.mediumSystemFont(13)
   t.centerAlignText()
@@ -63,9 +84,9 @@ if (!data || data.error) {
   const wallets   = data.widgetWallets  || []
 
   if (config.widgetFamily === 'small') {
-    buildSmall(w, available, pct, wallets)
+    buildSmall(w, available, pct, wallets, S)
   } else {
-    buildMedium(w, available, pct, wallets, expenses)
+    buildMedium(w, available, pct, wallets, expenses, S)
   }
 }
 
@@ -76,14 +97,14 @@ if (config.runsInApp) {
 }
 
 // ── Widget mediano ─────────────────────────────────────────────────────────────
-function buildMedium(w, available, pct, wallets, expenses) {
+function buildMedium(w, available, pct, wallets, expenses, S) {
   const row = w.addStack()
   row.layoutHorizontally()
   row.centerAlignContent()
 
   // Gauge izquierda
   const gSize = 130
-  const gaugeImg = row.addImage(makeGauge(available, pct, gSize))
+  const gaugeImg = row.addImage(makeGauge(available, pct, gSize, S))
   gaugeImg.imageSize = new Size(gSize, gSize)
 
   row.addSpacer(14)
@@ -95,7 +116,7 @@ function buildMedium(w, available, pct, wallets, expenses) {
 
   // Mes actual
   const now = new Date()
-  const monthName = now.toLocaleDateString('es-GT', { month: 'long' }).toUpperCase()
+  const monthName = now.toLocaleDateString(S.locale, { month: 'long' }).toUpperCase()
   const monthLbl = right.addText(monthName)
   monthLbl.textColor = GRAY
   monthLbl.font = Font.boldSystemFont(8)
@@ -103,17 +124,15 @@ function buildMedium(w, available, pct, wallets, expenses) {
   right.addSpacer(10)
 
   if (wallets.length === 0) {
-    // Sin wallets configuradas
-    const hint = right.addText("Activa 'Show in widget'\nen tu billetera")
+    const hint = right.addText(S.noWidget)
     hint.textColor = GRAY
     hint.font = Font.systemFont(10)
     hint.lineLimit = 3
   } else {
-    // Una tarjeta por wallet marcada
     const maxShow = Math.min(wallets.length, 3)
     for (let i = 0; i < maxShow; i++) {
       if (i > 0) right.addSpacer(8)
-      addWalletBlock(right, wallets[i])
+      addWalletBlock(right, wallets[i], S)
     }
   }
 
@@ -130,18 +149,18 @@ function buildMedium(w, available, pct, wallets, expenses) {
   const expRow = right.addStack()
   expRow.layoutHorizontally()
   expRow.centerAlignContent()
-  const expLbl = expRow.addText("Gastos mes  ")
+  const expLbl = expRow.addText(`${S.monthExpenses}  `)
   expLbl.textColor = GRAY
   expLbl.font = Font.systemFont(9)
-  const expAmt = expRow.addText(`-Q ${fmt(expenses)}`)
+  const expAmt = expRow.addText(`-Q ${fmt(expenses, S.locale)}`)
   expAmt.textColor = new Color("#F87171")
   expAmt.font = Font.boldSystemFont(9)
 }
 
 // ── Widget pequeño ─────────────────────────────────────────────────────────────
-function buildSmall(w, available, pct, wallets) {
+function buildSmall(w, available, pct, wallets, S) {
   w.addSpacer()
-  const img = w.addImage(makeGauge(available, pct, 110))
+  const img = w.addImage(makeGauge(available, pct, 110, S))
   img.centerAlignImage()
   img.imageSize = new Size(110, 110)
   w.addSpacer(8)
@@ -165,7 +184,7 @@ function buildSmall(w, available, pct, wallets) {
 }
 
 // ── Bloque de billetera ────────────────────────────────────────────────────────
-function addWalletBlock(parent, wallet) {
+function addWalletBlock(parent, wallet, S) {
   const stack = parent.addStack()
   stack.layoutVertically()
   stack.spacing = 2
@@ -179,13 +198,12 @@ function addWalletBlock(parent, wallet) {
   nameLbl.lineLimit = 1
 
   const amtColor = wallet.balance < 0 ? new Color("#F87171") : new Color("#34D399")
-  const amtLbl = stack.addText(`Q ${fmt(wallet.balance)}`)
+  const amtLbl = stack.addText(`Q ${fmt(wallet.balance, S.locale)}`)
   amtLbl.textColor = amtColor
   amtLbl.font = Font.boldSystemFont(14)
 }
 
-// ── Gauge ─────────────────────────────────────────────────────────────────────
-function makeGauge(amount, pct, size) {
+function makeGauge(amount, pct, size, S) {
   const ctx = new DrawContext()
   ctx.size = new Size(size, size)
   ctx.opaque = false
@@ -237,7 +255,7 @@ function makeGauge(amount, pct, size) {
   ctx.setFont(Font.boldSystemFont(size * 0.082))
   ctx.setTextColor(GRAY)
   ctx.drawTextInRect(
-    "DISPONIBLE",
+    S.available,
     new Rect(0, cy + size * 0.08, size, size * 0.15)
   )
 
@@ -264,12 +282,12 @@ function arcPath(cx, cy, r, start, end, steps) {
   return path
 }
 
-function fmt(n) {
-  return (n || 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+function fmt(n, locale) {
+  return (n || 0).toLocaleString(locale || 'es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-function fmtShort(n) {
+function fmtShort(n, locale) {
   const v = n || 0
   if (v >= 10000) return (v / 1000).toFixed(1) + 'K'
-  return v.toLocaleString('es-GT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+  return v.toLocaleString(locale || 'es-GT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }

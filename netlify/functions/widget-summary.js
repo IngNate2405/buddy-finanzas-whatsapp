@@ -17,15 +17,17 @@ exports.handler = async (event) => {
     const startDate = `${y}-${m}-01`
     const endDate   = `${y}-${m}-31`
 
-    const [walletsSnap, txSnap] = await Promise.all([
+    const [walletsSnap, txSnap, settingsSnap] = await Promise.all([
       db.collection(`users/${uid}/wallets`).get(),
       db.collection(`users/${uid}/transactions`)
         .where('date', '>=', startDate)
         .where('date', '<=', endDate)
         .orderBy('date', 'desc')
         .get(),
+      db.doc(`users/${uid}/meta/settings`).get(),
     ])
 
+    const language = settingsSnap.exists ? (settingsSnap.data().language || 'es') : 'es'
     const wallets = walletsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
 
     // Wallets marcadas para el widget (con nombre y saldo)
@@ -48,6 +50,7 @@ exports.handler = async (event) => {
         monthExpenses,
         monthIncome,
         month: `${y}-${m}`,
+        language,
       }),
     }
   } catch (err) {
