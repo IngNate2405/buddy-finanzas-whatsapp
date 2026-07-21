@@ -77,11 +77,12 @@ if (!data || data.error) {
   t.font = Font.mediumSystemFont(13)
   t.centerAlignText()
 } else {
-  const expenses  = data.monthExpenses  || 0
-  const income    = data.monthIncome    || 0
-  const available = Math.max(0, income - expenses)
-  const pct       = income > 0 ? Math.min(1, available / income) : 0
-  const wallets   = data.widgetWallets  || []
+  const expenses    = data.monthExpenses  || 0
+  const income      = data.monthIncome    || 0
+  const wallets     = data.widgetWallets  || []
+  const widgetTotal = wallets.reduce((s, wl) => s + (wl.balance || 0), 0)
+  const available   = wallets.length > 0 ? widgetTotal : Math.max(0, income - expenses)
+  const pct         = income > 0 ? Math.min(1, Math.max(0, (income - expenses) / income)) : 0
 
   if (config.widgetFamily === 'small') {
     buildSmall(w, available, pct, wallets, S)
