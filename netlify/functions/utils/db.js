@@ -91,13 +91,11 @@ async function saveTransaction(db, uid, { type, amount, categoryId, note, date, 
 
   await db.collection(`users/${uid}/transactions`).add(txData)
 
-  // Adjust wallet balance (same logic as v2 frontend)
-  const walletRef = db.doc(`users/${uid}/wallets/${walletId}`)
-  const walletSnap = await walletRef.get()
-  if (walletSnap.exists) {
-    const current = walletSnap.data().balance || 0
-    await walletRef.update({ balance: type === 'income' ? current + amount : current - amount })
-  }
+  // Adjust wallet balance using atomic increment (avoids race conditions)
+  const delta = type === 'income' ? amount : -amount
+  await db.doc(`users/${uid}/wallets/${walletId}`).update({
+    balance: admin.firestore.FieldValue.increment(delta),
+  })
 
   return walletId
 }
