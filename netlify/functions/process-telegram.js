@@ -26,11 +26,13 @@ exports.handler = async (event) => {
 
     const db = initFirebase()
 
-    // 1. Merchant map, 2. Gemini, 3. Keywords
+    // 1. Merchant map (skip if cached 'misc' — may be stale from a failed AI call)
+    // 2. Groq AI, 3. Keywords
     let categoryId = null
     if (transaction.merchant) {
-      categoryId = await getMerchantCategory(db, transaction.merchant)
-      if (categoryId) {
+      const cached = await getMerchantCategory(db, transaction.merchant)
+      if (cached && cached !== 'misc') {
+        categoryId = cached
         console.log(`🗺️ Mapa: ${transaction.merchant} → ${categoryId}`)
       } else {
         categoryId = await getCategoryFromGemini(transaction.merchant, transaction.description)
