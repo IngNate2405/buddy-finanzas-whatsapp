@@ -3,7 +3,7 @@
 
 const UID     = "DxuAuPFtBIR0hjTIG2v7UcWPGcQ2"
 const API_URL = "https://buddywspserver.netlify.app/widget-summary"
-const APP_URL = "https://finanzas-nate.vercel.app"
+const APP_URL = "webapp://finanzas-nate.vercel.app/"
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 const fm        = FileManager.local()
