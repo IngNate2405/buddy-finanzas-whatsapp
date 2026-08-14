@@ -75,9 +75,9 @@ function parseTransaction(text) {
 
 function parseBAM(text) {
   if (/rechazad[ao]/i.test(text)) return null
-  const amountMatch = text.match(/Q\s*(\d+(?:\.\d{2})?)/)
+  const amountMatch = text.match(/Q\s*([\d,]+(?:\.\d{1,2})?)/)
   if (!amountMatch) return null
-  const amount = parseFloat(amountMatch[1])
+  const amount = parseFloat(amountMatch[1].replace(/,/g, ''))
 
   // Fecha
   let date = new Date().toISOString()
